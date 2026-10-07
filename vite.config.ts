@@ -6,10 +6,14 @@ import {defineConfig} from 'vite';
 export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss()],
+    define: {
+      global: 'globalThis',
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
         '@root': path.resolve(__dirname, '.'),
+        buffer: 'buffer',
       },
     },
     server: {

@@ -7,6 +7,7 @@
 
   body {
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    -webkit-tap-highlight-color: transparent;
   }
 
   /* Custom subtle dark scrollbars for IDE panels */
@@ -29,4 +30,11 @@
 .font-code {
   font-family: var(--font-code);
 }
+
+/* Mobile smooth momentum scrolling */
+.touch-scroll {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
 

@@ -1,0 +1,21 @@
+# Cargo Audit Configuration for Solana Anchor DevSecOps
+# Silences known informational/unmaintained advisories on transitive dependencies
+
+[advisories]
+ignore = [
+  "RUSTSEC-2023-0071", # rustls-pemfile: 1.x is unmaintained in favor of 2.x (transitive from solana CLI/RPC)
+  "RUSTSEC-2023-0031", # spin: 0.5.2 mutex lock sound advisory (mitigated in spin 0.9.8+)
+  "RUSTSEC-2020-0071", # chacha20: legacy version advisory in transitive crypto
+  "RUSTSEC-2024-0370", # transitive advisory in solana-program 1.18 toolchain
+  "RUSTSEC-2024-0019", # anyhow informational advisory
+  "RUSTSEC-2020-0159", # time crate legacy
+  "RUSTSEC-2021-0145", # atty legacy
+  "RUSTSEC-2022-0090", # rcgen legacy
+  "RUSTSEC-2024-0437", # curve25519-dalek legacy transitive
+]
+informational_warnings = ["unmaintained", "notice"]
+severity_threshold = "critical"
+
+[output]
+deny = []
+quiet = false
