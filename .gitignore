@@ -1,0 +1,22 @@
+# Node & Vite dependencies
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# Rust & Cargo artifacts
+target/
+**/*.rs.bk
+Cargo.lock
+
+# Solana & Anchor artifacts
+.anchor/
+test-ledger/
+idls/
+deploy/
+*.so
+

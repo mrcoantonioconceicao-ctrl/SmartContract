@@ -1,0 +1,32 @@
+[package]
+name = "solana-anchor-security-auditor"
+version = "0.1.0"
+description = "Solana Anchor smart contract for DevSecOps AST & GraphRAG Security Auditor demonstration program"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "anchor_security_program"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+default = []
+
+[dependencies]
+anchor-lang = "0.30.1"
+anchor-spl = "0.30.1"
+solana-program = "~1.18.26"
+thiserror = "1.0.64"
+
+[dev-dependencies]
+solana-program-test = "~1.18.26"
+solana-sdk = "~1.18.26"
+
+[profile.release]
+overflow-checks = true
+lto = "fat"
+codegen-units = 1
+opt-level = 3

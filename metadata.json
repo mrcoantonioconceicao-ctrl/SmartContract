@@ -1,0 +1,6 @@
+{
+  "name": "Solana Anchor DevSecOps & GraphRAG Security Auditor IDE",
+  "description": "Enterprise-grade Solana Anchor DevSecOps IDE featuring AST semantic analysis, GraphRAG vulnerability reasoning, interactive attack graph visualizer, and MCP security agent.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
