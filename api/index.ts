@@ -1,38 +1,25 @@
 /**
- * Solana Anchor DevSecOps IDE - Express Full-Stack Server
- * Mounts Vite middlewares in development and serves API routes on /api/*
+ * Solana Anchor DevSecOps IDE - Vercel Serverless Function Handler
+ * Autoria: Marco Antonio Conceicao
+ *
+ * Exposes API routes on Vercel Serverless runtime without requiring local dev daemon.
  */
 
 import express from 'express';
-import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
-import dotenv from 'dotenv';
-import { executeMcpToolDirect, MCP_TOOLS } from './src/mcp/server.ts';
-import { createGitHubPullRequest } from './src/services/githubPrService.ts';
-import { buildContractSecurityGraph } from './src/services/graphRAGService.ts';
-import { generateOmgBpmnXml } from './src/services/bpmnWorkflowService.ts';
-import { SOA_CATALOG } from './src/services/soaCatalogService.ts';
-import { runRealRepositoryScan } from './src/services/realRepoScanner.ts';
-import { createRealGitHubIssues } from './src/services/githubIssueService.ts';
-
-dotenv.config();
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import path from 'path';
+import { executeMcpToolDirect, MCP_TOOLS } from '../src/mcp/server.ts';
+import { createGitHubPullRequest } from '../src/services/githubPrService.ts';
+import { buildContractSecurityGraph } from '../src/services/graphRAGService.ts';
+import { generateOmgBpmnXml } from '../src/services/bpmnWorkflowService.ts';
+import { SOA_CATALOG } from '../src/services/soaCatalogService.ts';
+import { runRealRepositoryScan } from '../src/services/realRepoScanner.ts';
+import { createRealGitHubIssues } from '../src/services/githubIssueService.ts';
 
 const app = express();
-const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
-const isProduction = process.env.NODE_ENV === 'production';
-
 app.use(express.json({ limit: '10mb' }));
 
-// ============================================================================
-// API ROUTES (/api/*)
-// ============================================================================
-
-// 1. GitHub CI/CD Pipeline & PR Synchronization (Real GitHub API with Pre-PR Validation)
-// Autoria: Marco Antonio Conceicao
+// 1. GitHub CI/CD Pipeline & PR Synchronization
 app.post('/api/github/sync', async (req, res) => {
   try {
     const { token, owner, repoName, branchName, payload } = req.body;
@@ -57,7 +44,15 @@ app.post('/api/github/sync', async (req, res) => {
     return res.json(result);
   } catch (error: any) {
     const msg = error.message || 'Falha ao processar sincronizacao com o GitHub';
-    const status = msg.includes('401') ? 401 : msg.includes('404') ? 404 : msg.includes('422') ? 422 : msg.includes('obrigatorio') || msg.includes('obrigatório') ? 400 : 500;
+    const status = msg.includes('401')
+      ? 401
+      : msg.includes('404')
+      ? 404
+      : msg.includes('422')
+      ? 422
+      : msg.includes('obrigatorio') || msg.includes('obrigatório')
+      ? 400
+      : 500;
     return res.status(status).json({
       success: false,
       error: msg,
@@ -90,7 +85,7 @@ app.post('/api/mcp/execute', async (req, res) => {
   }
 });
 
-// 3. GraphRAG Security Reasoning Endpoint
+// 4. GraphRAG Security Reasoning Endpoint
 app.post('/api/graphrag/audit', async (req, res) => {
   try {
     const { sourceCode } = req.body;
@@ -101,7 +96,7 @@ app.post('/api/graphrag/audit', async (req, res) => {
   }
 });
 
-// 4. BPMN 2.0 OMG XML Export Endpoint
+// 5. BPMN 2.0 OMG XML Export Endpoint
 app.get('/api/bpmn/xml', (_req, res) => {
   try {
     const xml = generateOmgBpmnXml();
@@ -112,7 +107,7 @@ app.get('/api/bpmn/xml', (_req, res) => {
   }
 });
 
-// 5. Unified SOA Microservices Catalog
+// 6. Unified SOA Microservices Catalog
 app.get('/api/soa/catalog', (_req, res) => {
   res.json({
     success: true,
@@ -124,7 +119,7 @@ app.get('/api/soa/catalog', (_req, res) => {
   });
 });
 
-// 6. EGC Physical Files Inspection Endpoint (Zero Mocks)
+// 7. EGC Physical Files Inspection Endpoint (Zero Mocks)
 // Autoria: Marco Antonio Conceicao
 app.get('/api/egc/physical-files', (_req, res) => {
   try {
@@ -140,7 +135,7 @@ app.get('/api/egc/physical-files', (_req, res) => {
     const files: Array<{ path: string; content: string }> = [];
 
     for (const relPath of candidatePaths) {
-      const fullPath = path.resolve(__dirname, relPath);
+      const fullPath = path.resolve(process.cwd(), relPath);
       if (fs.existsSync(fullPath)) {
         const content = fs.readFileSync(fullPath, 'utf-8');
         files.push({ path: relPath, content });
@@ -153,7 +148,7 @@ app.get('/api/egc/physical-files', (_req, res) => {
   }
 });
 
-// 7. EGC Deep Repository & AST Scan Endpoint
+// 8. EGC Deep Repository & AST Scan Endpoint
 app.post('/api/egc/scan', (req, res) => {
   try {
     let files = req.body?.files;
@@ -165,7 +160,7 @@ app.post('/api/egc/scan', (req, res) => {
       ];
       files = [];
       for (const relPath of candidatePaths) {
-        const fullPath = path.resolve(__dirname, relPath);
+        const fullPath = path.resolve(process.cwd(), relPath);
         if (fs.existsSync(fullPath)) {
           files.push({ path: relPath, content: fs.readFileSync(fullPath, 'utf-8') });
         }
@@ -179,7 +174,7 @@ app.post('/api/egc/scan', (req, res) => {
   }
 });
 
-// 8. GitHub Real Issues Creation Endpoint
+// 9. GitHub Real Issues Creation Endpoint
 app.post('/api/github/issues', async (req, res) => {
   try {
     const { token, owner, repoName, findings } = req.body;
@@ -197,28 +192,4 @@ app.post('/api/github/issues', async (req, res) => {
   }
 });
 
-// ============================================================================
-// VITE MIDDLEWARES / STATIC ASSETS
-// ============================================================================
-
-async function startServer() {
-  if (!isProduction) {
-    const { createServer: createViteServer } = await import('vite');
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
-  } else {
-    app.use(express.static(path.resolve(__dirname, 'dist')));
-    app.get('*', (_req, res) => {
-      res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
-    });
-  }
-
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[Anchor DevSecOps IDE] Server running on http://0.0.0.0:${PORT}`);
-  });
-}
-
-startServer();
+export default app;

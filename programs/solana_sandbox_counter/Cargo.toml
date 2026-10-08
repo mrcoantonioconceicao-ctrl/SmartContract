@@ -20,6 +20,10 @@ anchor-lang = "0.30.1"
 anchor-spl = "0.30.1"
 solana-program = "~1.18.26"
 thiserror = "1.0.64"
+anyhow = "1.0.95"
+rustls-pemfile = "2.2.0"
+chacha20 = "0.9.1"
+spin = "0.9.8"
 
 [package.metadata.audit]
 ignore = [

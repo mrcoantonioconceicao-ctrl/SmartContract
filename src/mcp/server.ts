@@ -110,6 +110,48 @@ export const MCP_TOOLS: McpToolDefinition[] = [
       required: ['instructionTarget'],
     },
   },
+  {
+    name: 'scan_repository_ast',
+    description: 'Deep AST and physical file scanner for Solana Anchor smart contracts and dApps (Zero Mocks). Audits deterministic PDAs, 49B rent-exempt memory, checked arithmetic, and signers.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        files: {
+          type: 'array',
+          description: 'Optional array of files to scan {path: string, content: string}',
+          items: { type: 'object' },
+        },
+      },
+    },
+  },
+  {
+    name: 'create_github_issues',
+    description: 'Creates real GitHub issues on remote repository via API based on AST and security audit findings.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        token: { type: 'string', description: 'GitHub Personal Access Token (PAT)' },
+        owner: { type: 'string', description: 'Repository owner' },
+        repoName: { type: 'string', description: 'Repository name' },
+        findings: { type: 'array', description: 'Optional findings list' },
+      },
+      required: ['token', 'owner', 'repoName'],
+    },
+  },
+  {
+    name: 'execute_egc_one_click',
+    description: 'Executes the unified 1-click EGC flow: deep AST scan, GitHub issue creation, PR opening with manual merge policy, and auditable PDF generation.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        token: { type: 'string', description: 'GitHub Personal Access Token (PAT)' },
+        owner: { type: 'string', description: 'Repository owner' },
+        repoName: { type: 'string', description: 'Repository name' },
+        branchName: { type: 'string', description: 'Target branch name' },
+      },
+      required: ['token', 'owner', 'repoName'],
+    },
+  },
 ];
 
 /**
@@ -188,6 +230,25 @@ export async function executeMcpToolDirect(toolName: string, args: Record<string
 
     case 'query_graphrag_security':
       return EgcMcpExecutionAdapter.queryGraphRag(args.instructionTarget || 'increment', args.sourceCode);
+
+    case 'scan_repository_ast':
+      return EgcMcpExecutionAdapter.scanRepositoryAst(args.files);
+
+    case 'create_github_issues':
+      return EgcMcpExecutionAdapter.createGitHubIssues({
+        token: args.token,
+        owner: args.owner,
+        repoName: args.repoName,
+        findings: args.findings,
+      });
+
+    case 'execute_egc_one_click':
+      return EgcMcpExecutionAdapter.executeEgcOneClick({
+        token: args.token,
+        owner: args.owner,
+        repoName: args.repoName,
+        branchName: args.branchName,
+      });
 
     default:
       throw new Error(`Tool "${toolName}" not found in Solana Anchor DevSecOps MCP Server`);

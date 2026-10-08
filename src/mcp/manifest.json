@@ -177,6 +177,70 @@
         },
         "required": ["instructionTarget"]
       }
+    },
+    {
+      "name": "scan_repository_ast",
+      "displayName": "Deep Repository AST Scanner",
+      "description": "Deep AST and physical file scanner for Solana Anchor smart contracts and dApps (Zero Mocks). Audits deterministic PDAs, 49B rent-exempt memory, checked arithmetic, and signers.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "files": {
+            "type": "array",
+            "description": "Optional list of files to scan"
+          }
+        }
+      }
+    },
+    {
+      "name": "create_github_issues",
+      "displayName": "Create GitHub Security Issues",
+      "description": "Creates real GitHub issues on remote repository via API based on AST and security audit findings.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "GitHub Personal Access Token (PAT)"
+          },
+          "owner": {
+            "type": "string",
+            "description": "Repository owner"
+          },
+          "repoName": {
+            "type": "string",
+            "description": "Repository name"
+          }
+        },
+        "required": ["token", "owner", "repoName"]
+      }
+    },
+    {
+      "name": "execute_egc_one_click",
+      "displayName": "Execute EGC One-Click Flow",
+      "description": "Executes unified 1-click EGC flow: deep AST scan, GitHub issue creation, PR opening with manual merge policy, and auditable PDF report generation.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "GitHub Personal Access Token (PAT)"
+          },
+          "owner": {
+            "type": "string",
+            "description": "Repository owner"
+          },
+          "repoName": {
+            "type": "string",
+            "description": "Repository name"
+          },
+          "branchName": {
+            "type": "string",
+            "description": "Target branch name"
+          }
+        },
+        "required": ["token", "owner", "repoName"]
+      }
     }
   ]
 }

@@ -84,9 +84,10 @@ import {
   executeMcpToolDirect 
 } from './mcp/server.ts';
 import { GitHubSyncModal } from './components/GitHubSyncModal.tsx';
+import { EgcCommandCenter } from './components/EgcCommandCenter.tsx';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'ast' | 'fuzzing' | 'graphrag' | 'bpmn' | 'mcp' | 'soa' | 'contract' | 'client'>('ast');
+  const [activeTab, setActiveTab] = useState<'egc' | 'ast' | 'fuzzing' | 'graphrag' | 'bpmn' | 'mcp' | 'soa' | 'contract' | 'client'>('egc');
   const [copied, setCopied] = useState<string | null>(null);
   const [wrapCode, setWrapCode] = useState<boolean>(false);
   const [isGitHubModalOpen, setIsGitHubModalOpen] = useState<boolean>(false);
@@ -320,6 +321,19 @@ pub struct UserCounter { pub authority: Pubkey, pub count: u64, pub bump: u8 }`;
 
           {/* Quick Header Actions */}
           <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
+            {/* EGC Command Center Quick Switch */}
+            <button
+              onClick={() => setActiveTab('egc')}
+              className={`px-2.5 py-1.5 text-xs font-mono rounded-lg flex items-center gap-1.5 transition-all touch-manipulation active:scale-95 ${
+                activeTab === 'egc'
+                  ? 'bg-cyan-500 text-slate-950 font-bold shadow-md shadow-cyan-500/20'
+                  : 'bg-cyan-950/60 hover:bg-cyan-900/60 text-cyan-300 border border-cyan-800/40'
+              }`}
+            >
+              <Cpu className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="text-[11px] font-semibold">Centro EGC</span>
+            </button>
+
             {/* GitHub Sync Button */}
             <button
               onClick={() => setIsGitHubModalOpen(true)}
@@ -347,6 +361,16 @@ pub struct UserCounter { pub authority: Pubkey, pub count: u64, pub bump: u8 }`;
         {/* Navigation Tabs Bar */}
         <div className="border-b border-slate-800 pb-2 -mx-3 px-3 sm:mx-0 sm:px-0">
           <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto touch-scroll no-scrollbar py-0.5">
+            <button
+              onClick={() => setActiveTab('egc')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center gap-1.5 shrink-0 ${
+                activeTab === 'egc' ? 'bg-gradient-to-r from-cyan-600 to-emerald-600 text-white shadow-md shadow-cyan-600/30 font-semibold' : 'bg-slate-900 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Cpu className="w-3.5 h-3.5 text-cyan-300" />
+              <span>Centro de Comando EGC</span>
+            </button>
+
             <button
               onClick={() => setActiveTab('ast')}
               className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center gap-1.5 shrink-0 ${
@@ -462,6 +486,11 @@ pub struct UserCounter { pub authority: Pubkey, pub count: u64, pub bump: u8 }`;
             </button>
           </div>
         </div>
+
+        {/* TAB 0: CENTRO DE COMANDO EGC */}
+        {activeTab === 'egc' && (
+          <EgcCommandCenter />
+        )}
 
         {/* TAB 1: AST AUDITOR */}
         {activeTab === 'ast' && (

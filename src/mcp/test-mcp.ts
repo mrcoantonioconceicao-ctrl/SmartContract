@@ -146,6 +146,35 @@ async function runTests() {
   console.log('');
 
   // -------------------------------------------------------------
+  // Test 5: Real Repository AST Scanner & GitHub Issues Engine (Zero Mocks)
+  // -------------------------------------------------------------
+  console.log(`${BOLD}[5/5] Testing EGC Real Repository AST Scanner & GitHub Issues Engine...${RESET}`);
+
+  // Test 5a: Deep real scan executes on project files
+  const scanResult: any = await executeMcpToolDirect('scan_repository_ast', {});
+  assert(scanResult && scanResult.scannedFilesCount > 0, 'Real scanner inspects physical project files');
+  assert(scanResult.solanaGuarantees.deterministicPdas === true, 'Solana Guarantee: Deterministic PDAs verified');
+  assert(scanResult.solanaGuarantees.rentExemptMemory49B === true, 'Solana Guarantee: Rent-Exempt 49B verified');
+  assert(scanResult.solanaGuarantees.checkedArithmetic === true, 'Solana Guarantee: Checked arithmetic verified');
+  assert(scanResult.solanaGuarantees.signerAuthorization === true, 'Solana Guarantee: Signer & has_one verified');
+
+  // Test 5b: Issue creator validates token
+  let missingTokenIssueBlocked = false;
+  try {
+    await executeMcpToolDirect('create_github_issues', {
+      token: '',
+      owner: 'mrcoantonioconceicao-ctrl',
+      repoName: 'SlipPay2',
+    });
+  } catch (err: any) {
+    if (err.message.includes('obrigatório')) {
+      missingTokenIssueBlocked = true;
+    }
+  }
+  assert(missingTokenIssueBlocked, 'create_github_issues blocks empty token');
+  console.log('');
+
+  // -------------------------------------------------------------
   // Summary
   // -------------------------------------------------------------
   console.log(`${BOLD}${GREEN}================================================================${RESET}`);

@@ -25,5 +25,5 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "include": ["src", "*.ts", "*.d.ts"]
+  "include": ["src", "api", "*.ts", "*.d.ts"]
 }

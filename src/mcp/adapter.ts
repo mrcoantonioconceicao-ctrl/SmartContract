@@ -15,6 +15,9 @@ import { createGitHubPullRequest, CreateGitHubPrOptions, GitHubPrResult } from '
 import { runPropertyFuzzingSuite } from '../services/fuzzingEngine.ts';
 import { DEFAULT_PROGRAM_ID } from '../../client/index.ts';
 import { buildContractSecurityGraph } from '../services/graphRAGService.ts';
+import { runRealRepositoryScan, FileToScan } from '../services/realRepoScanner.ts';
+import { createRealGitHubIssues } from '../services/githubIssueService.ts';
+import { executeEgcOneClickFlow, getTargetRepositoryFiles } from '../services/egcCommandCenterService.ts';
 
 export interface GenerateContractArgs {
   programName?: string;
@@ -140,5 +143,52 @@ export class EgcMcpExecutionAdapter {
         'Arithmetic Overflow -> Blocked by checked_add with safe revert',
       ],
     };
+  }
+
+  /**
+   * 7. Deep scan of repository files & AST (Zero Mocks)
+   */
+  public static async scanRepositoryAst(files?: FileToScan[]) {
+    const targetFiles = files && files.length > 0 ? files : await getTargetRepositoryFiles();
+    return runRealRepositoryScan(targetFiles);
+  }
+
+  /**
+   * 8. Creates real GitHub issues via API
+   */
+  public static async createGitHubIssues(options: {
+    token: string;
+    owner: string;
+    repoName: string;
+    findings?: any[];
+  }) {
+    let findings = options.findings;
+    if (!findings || findings.length === 0) {
+      const scan = await this.scanRepositoryAst();
+      findings = scan.findings;
+    }
+    return createRealGitHubIssues({
+      token: options.token,
+      owner: options.owner,
+      repoName: options.repoName,
+      findings,
+    });
+  }
+
+  /**
+   * 9. Full EGC One-Click Flow: Scan, Issues, PR, PDF
+   */
+  public static async executeEgcOneClick(options: {
+    token: string;
+    owner: string;
+    repoName: string;
+    branchName?: string;
+  }) {
+    return executeEgcOneClickFlow({
+      token: options.token,
+      owner: options.owner,
+      repoName: options.repoName,
+      branchName: options.branchName,
+    });
   }
 }
