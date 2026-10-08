@@ -222,10 +222,30 @@ pub struct UserCounter { pub authority: Pubkey, pub count: u64, pub bump: u8 }`;
     setIsMcpRunning(true);
     try {
       let args: any = {};
-      if (selectedMcpTool === 'audit_anchor_ast') args = { sourceCode: activeRustCode };
-      if (selectedMcpTool === 'run_property_fuzzer') args = { vectorCount: 10000 };
-      if (selectedMcpTool === 'derive_pda_spec') args = { authorityPubkey: authorityInput };
-      if (selectedMcpTool === 'query_graphrag_security') args = { instructionTarget: 'increment' };
+      if (selectedMcpTool === 'generate_anchor_contract') {
+        args = {
+          programName: 'solana_sandbox_counter',
+          description: 'Secure Solana Counter with checked math and authority isolation',
+          features: ['checked_math', 'pda_derivation', 'has_one_guard', 'close_instruction']
+        };
+      } else if (selectedMcpTool === 'audit_rust_ast' || selectedMcpTool === 'audit_anchor_ast') {
+        args = { sourceCode: activeRustCode };
+      } else if (selectedMcpTool === 'create_github_pr') {
+        args = {
+          token: 'ghp_example_token_replace_with_real_one',
+          owner: 'solana-labs',
+          repoName: 'solana-program-library',
+          branchName: 'secops/egc-anchor-patch',
+          title: '[EGC-MCP] Security Hardened Solana Anchor Counter',
+          body: 'Security PR generated via EGC Model Context Protocol'
+        };
+      } else if (selectedMcpTool === 'run_property_fuzzer') {
+        args = { vectorCount: 10000 };
+      } else if (selectedMcpTool === 'derive_pda_spec') {
+        args = { authorityPubkey: authorityInput };
+      } else if (selectedMcpTool === 'query_graphrag_security') {
+        args = { instructionTarget: 'increment' };
+      }
 
       const res = await executeMcpToolDirect(selectedMcpTool, args);
       setMcpResult(JSON.stringify(res, null, 2));
