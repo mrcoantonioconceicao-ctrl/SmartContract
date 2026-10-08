@@ -1,0 +1,182 @@
+{
+  "$schema": "https://modelcontextprotocol.io/schema/manifest.json",
+  "name": "solana-anchor-devsecops-mcp",
+  "displayName": "Solana Anchor DevSecOps, AST & GraphRAG MCP Plugin",
+  "version": "1.0.0",
+  "protocolVersion": "2024-11-05",
+  "description": "Model Context Protocol (MCP) server for Solana Anchor DevSecOps IDE, integrating Extended Global Context (EGC) with secure AST analysis, contract generation, and manual-only GitHub PR deployment.",
+  "author": {
+    "name": "Solana Anchor DevSecOps Core Team",
+    "maintainers": ["mrcoantonioconceicao", "Felipe Marzock"]
+  },
+  "runtime": {
+    "type": "node",
+    "entry": "src/mcp/cli.ts",
+    "transport": "stdio",
+    "isolation": "local_encrypted_machine_isolation"
+  },
+  "capabilities": {
+    "tools": true,
+    "resources": false,
+    "prompts": false
+  },
+  "tools": [
+    {
+      "name": "generate_anchor_contract",
+      "displayName": "Generate Secure Anchor Contract",
+      "description": "Generates production-ready, secure Rust/Anchor smart contract code with audited PDA derivations, checked arithmetic protection (checked_add/checked_sub), authority authorization guards (has_one = authority), exact byte memory sizing, and rent-exempt lamport calculations.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "programName": {
+            "type": "string",
+            "description": "Anchor program snake_case identifier (e.g. solana_sandbox_counter, slippay_escrow)",
+            "default": "solana_sandbox_counter"
+          },
+          "accountName": {
+            "type": "string",
+            "description": "Anchor PascalCase PDA state account struct name (e.g. UserCounter, EscrowVault)",
+            "default": "UserCounter"
+          },
+          "pdaPrefix": {
+            "type": "string",
+            "description": "Deterministic seed prefix for PDA account derivation (e.g. counter, vault)",
+            "default": "counter"
+          },
+          "hasCheckedMath": {
+            "type": "boolean",
+            "description": "Enforce checked arithmetic with custom error reverts on overflow/underflow",
+            "default": true
+          },
+          "hasSignerCheck": {
+            "type": "boolean",
+            "description": "Enforce Signer<'info> and has_one constraint for owner authorization",
+            "default": true
+          },
+          "includeCloseInstruction": {
+            "type": "boolean",
+            "description": "Generate safe close instruction with rent lamports refund to authority",
+            "default": true
+          }
+        }
+      }
+    },
+    {
+      "name": "audit_rust_ast",
+      "displayName": "Audit Rust AST Security",
+      "description": "Performs deep static AST security analysis on Solana Anchor Rust code to detect missing signers, unconstrained accounts, arithmetic overflows, missing bump validations, and rent-exempt memory layout mismatches.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "sourceCode": {
+            "type": "string",
+            "description": "Rust/Anchor smart contract source code to analyze statically."
+          }
+        },
+        "required": ["sourceCode"]
+      }
+    },
+    {
+      "name": "create_github_pr",
+      "displayName": "Create GitHub Pull Request (Manual Merge Only)",
+      "description": "Creates and opens a Pull Request on a remote GitHub repository with the audited Anchor smart contract and DevSecOps CI workflow. Strictly enforces a manual-only merge policy (auto-merge disabled) and requires a valid GitHub Personal Access Token (PAT).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "GitHub Personal Access Token (PAT, e.g. ghp_... or github_pat_...) with repo write permissions (Mandatory)."
+          },
+          "owner": {
+            "type": "string",
+            "description": "GitHub username or organization (e.g. mrcoantonioconceicao-ctrl) (Mandatory)."
+          },
+          "repoName": {
+            "type": "string",
+            "description": "Target repository name (e.g. SlipPay2, solana-anchor-devsecops) (Mandatory)."
+          },
+          "branchName": {
+            "type": "string",
+            "description": "Git branch name for the Pull Request. Default is auto-generated devsecops branch."
+          },
+          "title": {
+            "type": "string",
+            "description": "Pull Request title."
+          },
+          "body": {
+            "type": "string",
+            "description": "Pull Request markdown description."
+          },
+          "contractCode": {
+            "type": "string",
+            "description": "Optional Rust/Anchor contract code to include in PR documentation."
+          }
+        },
+        "required": ["token", "owner", "repoName"]
+      }
+    },
+    {
+      "name": "run_property_fuzzer",
+      "displayName": "Run Invariant Property Fuzzer",
+      "description": "Generates and runs up to 20,000 property-based fuzz test vectors verifying Solana SVM invariants (checked math, signer spoofing, rent drainage).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "vectorCount": {
+            "type": "number",
+            "description": "Number of fuzz vectors to evaluate (e.g. 10000, max 20000)",
+            "default": 10000
+          },
+          "hasCheckedMath": {
+            "type": "boolean",
+            "description": "Whether checked arithmetic is enabled",
+            "default": true
+          },
+          "hasSignerCheck": {
+            "type": "boolean",
+            "description": "Whether signer check constraint is enforced",
+            "default": true
+          }
+        }
+      }
+    },
+    {
+      "name": "derive_pda_spec",
+      "displayName": "Derive Solana PDA Specification",
+      "description": "Calculates deterministic PDA address, canonical bump, and verifies exact 49-byte rent-exempt lamport requirement.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "authorityPubkey": {
+            "type": "string",
+            "description": "Wallet public key of authority"
+          },
+          "seedPrefix": {
+            "type": "string",
+            "description": "Seed string prefix, default 'counter'"
+          }
+        },
+        "required": ["authorityPubkey"]
+      }
+    },
+    {
+      "name": "query_graphrag_security",
+      "displayName": "Query GraphRAG Security Graph",
+      "description": "Queries GraphRAG cross-instruction dependency graph for Solana vulnerabilities and attack path reasoning.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "instructionTarget": {
+            "type": "string",
+            "description": "Instruction name (e.g. initialize, increment, close)"
+          },
+          "attackVector": {
+            "type": "string",
+            "description": "Attack vector to inspect (e.g. signer_spoofing, integer_overflow, rent_drainage)"
+          }
+        },
+        "required": ["instructionTarget"]
+      }
+    }
+  ]
+}

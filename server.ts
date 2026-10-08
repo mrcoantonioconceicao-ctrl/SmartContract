@@ -7,7 +7,8 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-import { executeMcpToolDirect } from './src/mcp/server.ts';
+import { executeMcpToolDirect, MCP_TOOLS } from './src/mcp/server.ts';
+import { createGitHubPullRequest } from './src/services/githubPrService.ts';
 import { buildContractSecurityGraph } from './src/services/graphRAGService.ts';
 import { generateOmgBpmnXml } from './src/services/bpmnWorkflowService.ts';
 import { SOA_CATALOG } from './src/services/soaCatalogService.ts';
@@ -27,93 +28,41 @@ app.use(express.json({ limit: '10mb' }));
 // API ROUTES (/api/*)
 // ============================================================================
 
-// 1. GitHub CI/CD Pipeline & PR Synchronization (Manual-Only Review & Merge Flow)
+// 1. GitHub CI/CD Pipeline & PR Synchronization (Real GitHub API with Strict Error Validation)
 app.post('/api/github/sync', async (req, res) => {
   try {
     const { token, owner, repoName, branchName, payload } = req.body;
-    const targetOwner = (owner || 'mrcoantonioconceicao-ctrl').trim();
-    const targetRepo = (repoName || 'SlipPay2').trim();
-    const branch = (branchName || `devsecops/anchor-pda-${Date.now().toString(36)}`).trim();
-
-    // If a personal token is provided, interact strictly with GitHub Pull Request creation API
-    // Enforcing strict manual merge policy: NO auto-merge endpoints are invoked
-    if (token && (token.startsWith('ghp_') || token.startsWith('github_pat_'))) {
-      try {
-        const ghResponse = await fetch(`https://api.github.com/repos/${targetOwner}/${targetRepo}/pulls`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: 'application/vnd.github.v3+json',
-            'User-Agent': 'Solana-Anchor-DevSecOps-IDE',
-          },
-          body: JSON.stringify({
-            title: payload?.pullRequest?.title || '🛡️ [DevSecOps] Deploy Secure Anchor Counter',
-            head: branch,
-            base: 'main',
-            body: (payload?.pullRequest?.body || 'Audited by GraphRAG and AST engine.') +
-              '\n\n> ⚠️ **Política de Aprovação:** O merge automático está desativado. Este Pull Request requer revisão e merge manual diretamente no GitHub.',
-            draft: false,
-          }),
-        });
-
-        if (ghResponse.ok) {
-          const ghData = await ghResponse.json();
-          return res.json({
-            success: true,
-            mode: 'live_github_api',
-            prStatus: 'OPEN',
-            manualMergeRequired: true,
-            autoMergeEnabled: false,
-            prUrl: ghData.html_url,
-            prNumber: ghData.number,
-            owner: targetOwner,
-            repo: targetRepo,
-            branch,
-            message: `Pull Request #${ghData.number} aberto com status "Open" em ${targetOwner}/${targetRepo}. Aguardando revisão e merge manual.`,
-          });
-        } else {
-          const errData = await ghResponse.json().catch(() => ({}));
-          return res.json({
-            success: true,
-            mode: 'authenticated_repo_sync',
-            prStatus: 'OPEN',
-            manualMergeRequired: true,
-            autoMergeEnabled: false,
-            prUrl: `https://github.com/${targetOwner}/${targetRepo}/pull/1`,
-            owner: targetOwner,
-            repo: targetRepo,
-            branch,
-            commitSha: '7a4b8c9d12e3f4a5',
-            filesCommitted: 4,
-            message: `Pull Request criado com status "Open" em ${targetOwner}/${targetRepo}. O merge automático está desativado e deve ser efetuado manualmente pelo utilizador. ${errData.message ? '(' + errData.message + ')' : ''}`,
-          });
-        }
-      } catch {
-        // Fall back to sandbox response with explicit manual merge requirement
-      }
-    }
-
-    // Default simulated mode for secure sandbox demonstrations with explicit OPEN status and manual merge requirement
-    res.json({
-      success: true,
-      mode: 'sandbox_atomic_sync',
-      prStatus: 'OPEN',
-      manualMergeRequired: true,
-      autoMergeEnabled: false,
-      prUrl: `https://github.com/${targetOwner}/${targetRepo}/pull/1`,
-      owner: targetOwner,
-      repo: targetRepo,
-      branch,
-      commitSha: '7a4b8c9d12e3f4a5',
-      filesCommitted: 4,
-      message: `Pull Request aberto com status "Open" em ${targetOwner}/${targetRepo}. Merge automático estritamente desativado; requer aprovação manual no GitHub.`,
+    const result = await createGitHubPullRequest({
+      token,
+      owner,
+      repoName,
+      branchName,
+      title: payload?.pullRequest?.title,
+      body: payload?.pullRequest?.body,
     });
+    return res.json(result);
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    const msg = error.message || 'Falha ao processar sincronização com o GitHub';
+    const status = msg.includes('401') ? 401 : msg.includes('404') ? 404 : msg.includes('obrigatório') ? 400 : 500;
+    return res.status(status).json({
+      success: false,
+      error: msg,
+    });
   }
 });
 
-// 2. Model Context Protocol (MCP) Tool Execution Endpoint
+// 2. Model Context Protocol (MCP) Manifest & Tool Discovery Endpoint
+app.get('/api/mcp/manifest', (_req, res) => {
+  res.json({
+    name: 'solana-anchor-devsecops-mcp',
+    version: '1.0.0',
+    description: 'Solana Anchor DevSecOps IDE - EGC MCP Plugin',
+    protocolVersion: '2024-11-05',
+    tools: MCP_TOOLS,
+  });
+});
+
+// 3. Model Context Protocol (MCP) Tool Execution Endpoint
 app.post('/api/mcp/execute', async (req, res) => {
   try {
     const { tool, arguments: args } = req.body;

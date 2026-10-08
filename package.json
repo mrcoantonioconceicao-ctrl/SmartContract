@@ -9,7 +9,9 @@
     "start": "tsx server.ts",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "mcp": "tsx src/mcp/cli.ts",
+    "test:mcp": "tsx src/mcp/test-mcp.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

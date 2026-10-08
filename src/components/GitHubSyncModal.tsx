@@ -53,6 +53,7 @@ export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSync
   const [branchName, setBranchName] = useState<string>(pipelinePayload.targetBranch);
   const [syncStep, setSyncStep] = useState<SyncStep>('idle');
   const [prUrl, setPrUrl] = useState<string>('');
+  const [prNumber, setPrNumber] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [backendMessage, setBackendMessage] = useState<string>('');
 
@@ -81,42 +82,62 @@ export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSync
 
   if (!isOpen) return null;
 
-  const cleanOwner = owner.trim() || 'mrcoantonioconceicao-ctrl';
-  const cleanRepo = repoName.trim() || 'SlipPay2';
-  const dynamicRepoUrl = `https://github.com/${cleanOwner}/${cleanRepo}`;
+  const cleanOwner = owner.trim();
+  const cleanRepo = repoName.trim();
+  const cleanToken = token.trim();
+  const dynamicRepoUrl = `https://github.com/${cleanOwner || 'owner'}/${cleanRepo || 'repo'}`;
+
+  const isFormValid = Boolean(
+    cleanOwner &&
+    cleanRepo &&
+    cleanToken &&
+    (cleanToken.startsWith('ghp_') || cleanToken.startsWith('github_pat_'))
+  );
 
   const handleStartSync = async () => {
-    if (!cleanOwner) {
-      setErrorMessage('Por favor, introduza o utilizador ou organização do GitHub.');
+    // 1. Mandatory Token Validation
+    if (!cleanToken) {
+      setErrorMessage('GitHub Personal Access Token (PAT) é OBRIGATÓRIO. Introduza o seu token antes de sincronizar.');
+      setSyncStep('error');
       return;
     }
+
+    if (!cleanToken.startsWith('ghp_') && !cleanToken.startsWith('github_pat_')) {
+      setErrorMessage('Formato de token inválido. O GitHub PAT deve começar por "ghp_" (Classic) ou "github_pat_" (Fine-grained).');
+      setSyncStep('error');
+      return;
+    }
+
+    if (!cleanOwner) {
+      setErrorMessage('Por favor, introduza o utilizador ou organização do GitHub.');
+      setSyncStep('error');
+      return;
+    }
+
     if (!cleanRepo) {
       setErrorMessage('Por favor, introduza o nome do repositório de destino.');
+      setSyncStep('error');
       return;
     }
 
     localStorage.setItem(STORAGE_KEY_OWNER, cleanOwner);
     localStorage.setItem(STORAGE_KEY_REPO, cleanRepo);
-    if (token) localStorage.setItem(STORAGE_KEY_TOKEN, token);
+    localStorage.setItem(STORAGE_KEY_TOKEN, cleanToken);
 
     setSyncStep('forking');
     setErrorMessage('');
+    setPrUrl('');
+    setPrNumber(null);
 
     try {
-      // Step 1: Forking
-      await new Promise(r => setTimeout(r, 600));
-      setSyncStep('branching');
-
-      // Step 2: Branch creation
-      await new Promise(r => setTimeout(r, 500));
       setSyncStep('committing');
 
-      // Step 3: Atomic commit with dynamic owner and repoName
+      // Dispatch to production backend with real GitHub API execution
       const res = await fetch('/api/github/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          token: token.trim() || undefined,
+          token: cleanToken,
           owner: cleanOwner,
           repoName: cleanRepo,
           branchName: branchName.trim(),
@@ -127,21 +148,24 @@ export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSync
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({ success: false, error: 'Resposta inválida do servidor' }));
 
-      setSyncStep('creating_pr');
-      await new Promise(r => setTimeout(r, 600));
-
-      if (data.success) {
-        setPrUrl(data.prUrl || `${dynamicRepoUrl}/pull/1`);
-        setBackendMessage(data.message || 'Pull Request aberto com status "Open". Merge automático desativado.');
-        setSyncStep('success');
-      } else {
-        throw new Error(data.error || 'Falha na comunicação com API do GitHub');
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || `Erro HTTP ${res.status}: Falha ao contactar a API do GitHub`);
       }
+
+      // Verify that the PR was actually created and is live with status OPEN
+      if (!data.prUrl || data.prStatus !== 'OPEN') {
+        throw new Error('A API do GitHub não confirmou a abertura do Pull Request com o status "Open".');
+      }
+
+      setPrUrl(data.prUrl);
+      setPrNumber(data.prNumber || null);
+      setBackendMessage(data.message || 'Pull Request aberto com status "Open" no GitHub.');
+      setSyncStep('success');
     } catch (err: any) {
       setSyncStep('error');
-      setErrorMessage(err.message || 'Erro inesperado durante a sincronização com o repositório');
+      setErrorMessage(err.message || 'Erro inesperado durante a comunicação com a API do GitHub');
     }
   };
 
@@ -241,38 +265,44 @@ export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSync
                 />
               </div>
 
-              {/* Personal Access Token Input */}
+              {/* Personal Access Token Input (MANDATORY) */}
               <div>
                 <div className="flex justify-between items-center mb-1">
                   <label className="text-slate-300 text-[11px] font-semibold flex items-center gap-1.5">
-                    <Lock className="w-3.5 h-3.5 text-slate-400" />
-                    <span>GitHub Personal Access Token (Opcional):</span>
+                    <Lock className="w-3.5 h-3.5 text-rose-400" />
+                    <span>GitHub Personal Access Token:</span>
+                    <span className="text-[10px] text-rose-400 font-bold tracking-wider uppercase ml-1">(Obrigatório)</span>
                   </label>
-                  <span className="text-[10px] text-slate-500">Deixe vazio para Modo Sandbox</span>
+                  <span className="text-[10px] text-slate-400">Permissões de repo / PR</span>
                 </div>
                 <input
                   type="password"
-                  placeholder="ghp_xxxxxxxxxxxxxxxxxxxx (salvo no localStorage)"
+                  placeholder="ghp_xxxxxxxxxxxx ou github_pat_xxxxxxxxxxxx"
                   value={token}
                   onChange={(e) => handleTokenChange(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-300 focus:outline-none focus:border-purple-500 transition-colors"
+                  className={`w-full bg-slate-950 border ${!cleanToken ? 'border-rose-900/60 focus:border-rose-500' : 'border-slate-800 focus:border-purple-500'} rounded-lg px-3 py-2 text-slate-300 focus:outline-none transition-colors`}
+                  required
                 />
+                {!cleanToken && (
+                  <p className="text-[10px] text-rose-400/90 mt-1 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3 shrink-0" />
+                    <span>Obrigatório para autenticação real e abertura de PR no GitHub.</span>
+                  </p>
+                )}
               </div>
             </>
           )}
 
           {/* Syncing Progress Display */}
-          {(syncStep === 'forking' || syncStep === 'branching' || syncStep === 'committing' || syncStep === 'creating_pr') && (
+          {(syncStep === 'committing' || syncStep === 'creating_pr') && (
             <div className="py-8 flex flex-col items-center justify-center space-y-4">
               <RotateCcw className="w-8 h-8 text-cyan-400 animate-spin" />
               <div className="text-center">
                 <div className="text-sm font-bold text-white">
-                  {syncStep === 'forking' && `A preparar fork e branch para ${cleanOwner}/${cleanRepo}...`}
-                  {syncStep === 'branching' && `Criando branch atómica ${branchName}...`}
-                  {syncStep === 'committing' && 'Enviando commits assinados (4 ficheiros)...'}
-                  {syncStep === 'creating_pr' && `Abrindo Pull Request com status "Open" em ${cleanOwner}/${cleanRepo}...`}
+                  A autenticar com a API do GitHub e a criar Pull Request para {cleanOwner}/{cleanRepo}...
                 </div>
                 <p className="text-[11px] text-slate-400 mt-1 font-mono">{dynamicRepoUrl}</p>
+                <p className="text-[10px] text-cyan-400 mt-2 font-mono">Conexão direta e segura com a API do GitHub</p>
               </div>
             </div>
           )}
@@ -284,13 +314,15 @@ export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSync
                 <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
                 <div>
                   <div className="flex items-center gap-2">
-                    <h4 className="text-sm font-bold text-emerald-300">Pull Request Aberto com Sucesso!</h4>
+                    <h4 className="text-sm font-bold text-emerald-300">
+                      Pull Request {prNumber ? `#${prNumber} ` : ''}Aberto no GitHub!
+                    </h4>
                     <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-900/60 text-emerald-300 border border-emerald-500/40">
                       STATUS: OPEN
                     </span>
                   </div>
                   <p className="text-xs text-slate-300 mt-1 leading-relaxed">
-                    O Pull Request foi criado e permanece com o status <strong>"Open"</strong> no GitHub.
+                    {backendMessage || 'O Pull Request foi criado e permanece com o status "Open" no GitHub.'}
                   </p>
                 </div>
               </div>
@@ -316,9 +348,15 @@ export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSync
                   <span>Status do PR:</span>
                   <span className="text-emerald-400 font-bold">Open (Aguardando Revisão)</span>
                 </div>
+                {prNumber && (
+                  <div className="flex justify-between text-slate-400">
+                    <span>Número do PR:</span>
+                    <span className="text-white font-semibold">#{prNumber}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-slate-400">
-                  <span>Commit SHA:</span>
-                  <span className="text-slate-300">7a4b8c9d (Assinado)</span>
+                  <span>API GitHub:</span>
+                  <span className="text-emerald-400">Confirmado em Tempo Real</span>
                 </div>
               </div>
 
@@ -370,10 +408,16 @@ export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSync
               </button>
               <button
                 onClick={handleStartSync}
-                className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center gap-2 shadow-lg shadow-purple-600/30 transition-all active:scale-95"
+                disabled={!isFormValid}
+                className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all ${
+                  isFormValid
+                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-lg shadow-purple-600/30 active:scale-95 cursor-pointer'
+                    : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700/50'
+                }`}
+                title={!isFormValid ? 'Preencha o GitHub PAT obrigatório, utilizador e repositório' : 'Abrir Pull Request real no GitHub'}
               >
                 <Send className="w-3.5 h-3.5" />
-                <span>Abrir Pull Request (Status Open) em {cleanRepo}</span>
+                <span>Abrir Pull Request (Status Open) em {cleanRepo || 'Repositório'}</span>
               </button>
             </div>
           </div>

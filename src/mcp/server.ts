@@ -1,6 +1,6 @@
 /**
  * Model Context Protocol (MCP) Server for Solana Anchor DevSecOps IDE
- * Exposes security analysis, fuzzing, PDA derivation, and BPMN tools to AI agents
+ * Exposes core AST security, smart contract generation, and manual-only GitHub PR tools to EGC
  */
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -8,9 +8,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { runAstSecurityAudit } from '../utils/astAuditor.ts';
-import { runPropertyFuzzingSuite } from '../services/fuzzingEngine.ts';
-import { DEFAULT_PROGRAM_ID } from '../../client/index.ts';
+import { EgcMcpExecutionAdapter } from './adapter.ts';
 
 export interface McpToolDefinition {
   name: string;
@@ -24,8 +22,50 @@ export interface McpToolDefinition {
 
 export const MCP_TOOLS: McpToolDefinition[] = [
   {
+    name: 'generate_anchor_contract',
+    description: 'Generates secure, production-grade Rust/Anchor smart contract code with audited PDA derivations, checked math, authority guards, and rent-exempt sizing.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        programName: { type: 'string', description: 'Anchor program identifier (e.g. solana_sandbox_counter)' },
+        accountName: { type: 'string', description: 'PDA state account struct name (e.g. UserCounter)' },
+        pdaPrefix: { type: 'string', description: 'Deterministic seed prefix for PDA derivation (e.g. counter)' },
+        hasCheckedMath: { type: 'boolean', description: 'Enforce checked arithmetic' },
+        hasSignerCheck: { type: 'boolean', description: 'Enforce Signer and has_one constraint' },
+      },
+    },
+  },
+  {
+    name: 'audit_rust_ast',
+    description: 'Executes static AST security audit on Solana Anchor Rust code to detect missing signers, unconstrained accounts, arithmetic overflows, and rent-exempt issues.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sourceCode: { type: 'string', description: 'Rust/Anchor smart contract source code' },
+      },
+      required: ['sourceCode'],
+    },
+  },
+  {
+    name: 'create_github_pr',
+    description: 'Creates and opens a Pull Request on a remote GitHub repository. Strictly enforces manual-only merge policy (no auto-merge) and requires a valid GitHub PAT.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        token: { type: 'string', description: 'GitHub Personal Access Token (PAT, e.g. ghp_... or github_pat_...)' },
+        owner: { type: 'string', description: 'GitHub username or organization' },
+        repoName: { type: 'string', description: 'Target repository name' },
+        branchName: { type: 'string', description: 'Feature branch name' },
+        title: { type: 'string', description: 'Pull Request title' },
+        body: { type: 'string', description: 'Pull Request markdown body' },
+        contractCode: { type: 'string', description: 'Anchor Rust code to include' },
+      },
+      required: ['token', 'owner', 'repoName'],
+    },
+  },
+  {
     name: 'audit_anchor_ast',
-    description: 'Executes static AST security audit on Solana Anchor Rust code to detect missing signers, overflow risks, and rent-exempt issues.',
+    description: 'Alias for audit_rust_ast: executes static AST security audit on Solana Anchor Rust code.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -36,11 +76,11 @@ export const MCP_TOOLS: McpToolDefinition[] = [
   },
   {
     name: 'run_property_fuzzer',
-    description: 'Generates and runs up to 20,000 property-based fuzz test vectors verifying Solana SVM invariants (checked math, signer spoofing, rent drainage).',
+    description: 'Generates and runs up to 20,000 property-based fuzz test vectors verifying Solana SVM invariants.',
     inputSchema: {
       type: 'object',
       properties: {
-        vectorCount: { type: 'number', description: 'Number of fuzz vectors to evaluate (e.g. 10000)' },
+        vectorCount: { type: 'number', description: 'Number of fuzz vectors to evaluate' },
         hasCheckedMath: { type: 'boolean', description: 'Whether checked arithmetic is enabled' },
         hasSignerCheck: { type: 'boolean', description: 'Whether signer check constraint is enforced' },
       },
@@ -52,7 +92,7 @@ export const MCP_TOOLS: McpToolDefinition[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        authorityPubkey: { type: 'string', description: 'Wallet public key of counter authority' },
+        authorityPubkey: { type: 'string', description: 'Wallet public key of authority' },
         seedPrefix: { type: 'string', description: 'Seed string prefix, default "counter"' },
       },
       required: ['authorityPubkey'],
@@ -65,7 +105,7 @@ export const MCP_TOOLS: McpToolDefinition[] = [
       type: 'object',
       properties: {
         instructionTarget: { type: 'string', description: 'Instruction name (e.g. initialize, increment, close)' },
-        attackVector: { type: 'string', description: 'Attack vector to inspect (e.g. signer_spoofing, integer_overflow, rent_drainage)' },
+        sourceCode: { type: 'string', description: 'Optional Rust source code' },
       },
       required: ['instructionTarget'],
     },
@@ -98,119 +138,58 @@ export function createAnchorMcpServer() {
   // Handle tool calls
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
+    const result = await executeMcpToolDirect(name, (args as Record<string, any>) || {});
 
-    if (name === 'audit_anchor_ast') {
-      const sourceCode = (args?.sourceCode as string) || '';
-      const auditResult = runAstSecurityAudit(sourceCode);
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(auditResult, null, 2),
-          },
-        ],
-      };
-    }
-
-    if (name === 'run_property_fuzzer') {
-      const count = (args?.vectorCount as number) || 10000;
-      const flags = {
-        hasCheckedMath: args?.hasCheckedMath !== false,
-        hasSignerCheck: args?.hasSignerCheck !== false,
-        hasOneAuthority: true,
-        hasRentExempt49B: true,
-      };
-      const fuzzResult = runPropertyFuzzingSuite(count, flags);
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(fuzzResult, null, 2),
-          },
-        ],
-      };
-    }
-
-    if (name === 'derive_pda_spec') {
-      const auth = (args?.authorityPubkey as string) || '9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM';
-      const prefix = (args?.seedPrefix as string) || 'counter';
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              programId: DEFAULT_PROGRAM_ID.toBase58(),
-              seeds: [`b"${prefix}"`, auth],
-              canonicalBump: 254,
-              allocatedSpaceBytes: 49,
-              rentExemptLamports: 1231920,
-              derivationStatus: 'DETERMINISTIC_OFF_CURVE_VERIFIED',
-            }, null, 2),
-          },
-        ],
-      };
-    }
-
-    if (name === 'query_graphrag_security') {
-      const target = (args?.instructionTarget as string) || 'increment';
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              targetInstruction: target,
-              connectedAccounts: ['UserCounter', 'Signer(authority)'],
-              guards: ['has_one = authority', '.checked_add(amount)'],
-              riskLevel: 'LOW',
-              attackPathsAnalyzed: [
-                'Signer Impersonation -> Blocked by has_one',
-                'Arithmetic Overflow -> Blocked by checked_add with safe revert',
-              ],
-            }, null, 2),
-          },
-        ],
-      };
-    }
-
-    throw new Error(`Tool not found: ${name}`);
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(result, null, 2),
+        },
+      ],
+    };
   });
 
   return server;
 }
 
 /**
- * Direct programmatic tool invoker for frontend & REST API bridge
+ * Direct programmatic tool invoker for frontend, EGC bus, & REST API bridge
  */
 export async function executeMcpToolDirect(toolName: string, args: Record<string, any>) {
-  if (toolName === 'audit_anchor_ast') {
-    return runAstSecurityAudit(args.sourceCode || '');
+  switch (toolName) {
+    case 'generate_anchor_contract':
+      return EgcMcpExecutionAdapter.generateAnchorContract(args);
+
+    case 'audit_rust_ast':
+    case 'audit_anchor_ast':
+      return EgcMcpExecutionAdapter.auditRustAst(args.sourceCode || '');
+
+    case 'create_github_pr':
+      return EgcMcpExecutionAdapter.createGitHubPr({
+        token: args.token,
+        owner: args.owner,
+        repoName: args.repoName,
+        branchName: args.branchName,
+        title: args.title,
+        body: args.body,
+        contractCode: args.contractCode,
+      });
+
+    case 'run_property_fuzzer':
+      return EgcMcpExecutionAdapter.runPropertyFuzzer(
+        args.vectorCount || 10000,
+        args.hasCheckedMath !== false,
+        args.hasSignerCheck !== false
+      );
+
+    case 'derive_pda_spec':
+      return EgcMcpExecutionAdapter.derivePdaSpec(args.authorityPubkey, args.seedPrefix || 'counter');
+
+    case 'query_graphrag_security':
+      return EgcMcpExecutionAdapter.queryGraphRag(args.instructionTarget || 'increment', args.sourceCode);
+
+    default:
+      throw new Error(`Tool "${toolName}" not found in Solana Anchor DevSecOps MCP Server`);
   }
-  if (toolName === 'run_property_fuzzer') {
-    return runPropertyFuzzingSuite(args.vectorCount || 10000, {
-      hasCheckedMath: args.hasCheckedMath !== false,
-      hasSignerCheck: args.hasSignerCheck !== false,
-      hasOneAuthority: true,
-      hasRentExempt49B: true,
-    });
-  }
-  if (toolName === 'derive_pda_spec') {
-    return {
-      programId: DEFAULT_PROGRAM_ID.toBase58(),
-      seeds: [`b"${args.seedPrefix || 'counter'}"`, args.authorityPubkey || 'default'],
-      canonicalBump: 254,
-      allocatedSpaceBytes: 49,
-      rentExemptLamports: 1231920,
-    };
-  }
-  if (toolName === 'query_graphrag_security') {
-    return {
-      instruction: args.instructionTarget,
-      riskAssessment: 'PROTECTED',
-      graphEdges: [
-        { from: 'authority', relation: 'SIGNER_GATED', to: args.instructionTarget },
-        { from: args.instructionTarget, relation: 'STATE_MUTATION', to: 'UserCounter.count' },
-      ],
-    };
-  }
-  throw new Error(`Tool "${toolName}" not found`);
 }

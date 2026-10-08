@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "solana-anchor-devsecops": {
+      "command": "npx",
+      "args": ["tsx", "src/mcp/cli.ts"],
+      "env": {
+        "NODE_ENV": "development"
+      }
+    }
+  }
+}
