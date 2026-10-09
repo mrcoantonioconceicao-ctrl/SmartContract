@@ -1,0 +1,92 @@
+# ==============================================================================
+# Solana Anchor Static Lint Configuration (.anchor-lint.toml)
+# Autoria: Marco Antonio Conceicao
+# Regra C44: Preservacao Nao-Destrutiva
+# ==============================================================================
+
+[package]
+name = "anchor-lint"
+version = "1.0.0"
+author = "Marco Antonio Conceicao"
+description = "Configuracao oficial de linting estatico TOML para contratos inteligentes Solana Anchor"
+
+[settings]
+target_files = ["programs/**/*.rs", "programs/**/src/*.rs"]
+ignore_patterns = ["target/**", "node_modules/**", ".git/**", "dist/**"]
+solana_version = "1.18.26"
+anchor_version = "0.30.1"
+fail_on_warnings = false
+max_allowed_errors = 0
+
+[compliance]
+rule_c44_non_destructive = true
+prohibit_unicode_dashes = true
+strict_security_score = 90
+
+# ==============================================================================
+# REGRAS DE SEGURANCA ESTATICA SOLANA ANCHOR
+# ==============================================================================
+
+# Regra 1: Falta de verificacao de Signer (Signer Authorization)
+[rules.signer_authorization]
+enabled = true
+severity = "error"
+rule_id = "ANCHOR-LINT-001"
+description = "Detecta autoridades tipadas como AccountInfo sem verificacao de assinatura criptografica Ed25519."
+remediation = "Substitua AccountInfo por Signer<'info> nas structs de contexto de contas."
+
+# Regra 2: Falta de checagem de propriedade de contas (Ownership / has_one constraint)
+[rules.ownership_constraint]
+enabled = true
+severity = "error"
+rule_id = "ANCHOR-LINT-002"
+description = "Detecta contas mutaveis sem a restricao declarativa has_one = authority para evitar personificacao e adulteracao de estado."
+remediation = "Adicione a restricao has_one = authority na macro #[account(mut, has_one = authority)]."
+
+# Regra 3: Aritmetica sem protecao de overflow/underflow
+[rules.checked_arithmetic]
+enabled = true
+severity = "error"
+rule_id = "ANCHOR-LINT-003"
+description = "Detecta operacoes aritmeticas brutas (+, -, *, /) que causam panics ou estouro de buffer."
+remediation = "Utilize .checked_add(), .checked_sub() ou .checked_mul()."
+
+# Regra 4: Derivacao nao-deterministica de seeds de PDA
+[rules.deterministic_pda_seeds]
+enabled = true
+severity = "error"
+rule_id = "ANCHOR-LINT-004"
+description = "Detecta inicializacoes de contas sem definicao de seeds canonicas e armazenamento de bump."
+remediation = "Defina seeds = [b\"counter\", authority.key().as_ref()] e armazene bump no estado."
+
+# Regra 5: Alocacao inadequada de memoria Rent-Exempt
+[rules.rent_exempt_space]
+enabled = true
+severity = "error"
+rule_id = "ANCHOR-LINT-005"
+description = "Detecta alocacoes indefinidas de memoria na criacao de contas."
+remediation = "Especifique space = 49 (8 discriminador + 32 autoridade + 8 contador + 1 bump)."
+
+# Regra 6: Fechamento inseguro de contas
+[rules.safe_account_closing]
+enabled = true
+severity = "warning"
+rule_id = "ANCHOR-LINT-006"
+description = "Detecta metodos de fechamento de conta sem devolucao segura de lamports via close = authority."
+remediation = "Adicione #[account(mut, close = authority)]."
+
+# Regra 7: Prevencao contra reentrancia
+[rules.reentrancy_prevention]
+enabled = true
+severity = "warning"
+rule_id = "ANCHOR-LINT-007"
+description = "Detecta mutacoes de estado apos chamadas CPI externas para programas de terceiros."
+remediation = "Aplique o padrao Checks-Effects-Interactions."
+
+# Regra 8: Contas mutaveis duplicadas
+[rules.duplicate_mutable_accounts]
+enabled = true
+severity = "warning"
+rule_id = "ANCHOR-LINT-008"
+description = "Detecta multiplas contas mutaveis do mesmo tipo que podem causar ataques de conta duplicada (aliasing)."
+remediation = "Adicione restricoes de constraint = account_a.key() != account_b.key()."

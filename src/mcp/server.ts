@@ -165,6 +165,19 @@ export const MCP_TOOLS: McpToolDefinition[] = [
       },
     },
   },
+  {
+    name: 'run_anchor_lint',
+    description: 'Runs static anchor-lint to detect Solana anti-patterns (signer auth, has_one, checked arithmetic, PDA seeds) automatically before AST analysis.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        files: {
+          type: 'array',
+          description: 'Optional array of physical repository files to lint',
+        },
+      },
+    },
+  },
 ];
 
 /**
@@ -265,6 +278,9 @@ export async function executeMcpToolDirect(toolName: string, args: Record<string
 
     case 'analyze_contextual_architecture':
       return EgcMcpExecutionAdapter.analyzeContextualArchitecture(args.files);
+
+    case 'run_anchor_lint':
+      return EgcMcpExecutionAdapter.runAnchorLinter(args.files);
 
     default:
       throw new Error(`Tool "${toolName}" not found in Solana Anchor DevSecOps MCP Server`);

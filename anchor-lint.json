@@ -1,0 +1,73 @@
+{
+  "$schema": "https://solana.com/anchor-lint/schema.json",
+  "name": "anchor-lint",
+  "version": "1.0.0",
+  "author": "Marco Antonio Conceicao",
+  "description": "Configuracao oficial de linting estatico para smart contracts Solana Anchor",
+  "targetFiles": [
+    "programs/**/*.rs",
+    "programs/**/src/*.rs"
+  ],
+  "ignorePatterns": [
+    "target/**",
+    "node_modules/**",
+    ".git/**",
+    "dist/**"
+  ],
+  "rules": {
+    "signer-authorization": {
+      "enabled": true,
+      "severity": "error",
+      "ruleId": "ANCHOR-LINT-001",
+      "description": "Exige que autoridades de conta utilizem Signer<'info> e rejeita o uso inseguro de AccountInfo para autorizacoes."
+    },
+    "ownership-constraint": {
+      "enabled": true,
+      "severity": "error",
+      "ruleId": "ANCHOR-LINT-002",
+      "description": "Exige a restricao has_one = authority em instrucoes que mutam estado de conta pertencente ao usuario."
+    },
+    "checked-arithmetic": {
+      "enabled": true,
+      "severity": "error",
+      "ruleId": "ANCHOR-LINT-003",
+      "description": "Proibe operadores aritmeticos brutos (+, -, *, /) e exige metodos protegidos (.checked_add, .checked_sub, etc.)."
+    },
+    "deterministic-pda-seeds": {
+      "enabled": true,
+      "severity": "error",
+      "ruleId": "ANCHOR-LINT-004",
+      "description": "Exige sementes deterministicas (seeds = [...]) e persistencia de bump canonico no estado para contas PDA."
+    },
+    "rent-exempt-space": {
+      "enabled": true,
+      "severity": "error",
+      "ruleId": "ANCHOR-LINT-005",
+      "description": "Exige alocacao exata de memoria rent-exempt com calculo do discriminador (8 bytes) e espaco total."
+    },
+    "safe-account-closing": {
+      "enabled": true,
+      "severity": "warning",
+      "ruleId": "ANCHOR-LINT-006",
+      "description": "Exige que o fechamento de contas redirecione lamports para a autoridade autenticada via close = authority."
+    },
+    "reentrancy-prevention": {
+      "enabled": true,
+      "severity": "warning",
+      "ruleId": "ANCHOR-LINT-007",
+      "description": "Detecta potenciais anti-patterns de reentrancia e mutacoes de estado apos chamadas CPI externas."
+    },
+    "duplicate-mutable-accounts": {
+      "enabled": true,
+      "severity": "warning",
+      "ruleId": "ANCHOR-LINT-008",
+      "description": "Detecta contas mutaveis duplicadas do mesmo tipo que podem causar ataques de alias de conta."
+    }
+  },
+  "compliance": {
+    "ruleC44NonDestructive": true,
+    "prohibitUnicodeDashes": true,
+    "solanaVersion": "1.18.26",
+    "anchorVersion": "0.30.1"
+  }
+}

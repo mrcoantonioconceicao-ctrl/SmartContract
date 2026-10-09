@@ -11,6 +11,8 @@
  * 4. Validacao rigorosa de signatarios (Signer<'info> e has_one = authority).
  */
 
+import { runAnchorLint, AnchorLintResult } from '../lint/anchorLint.ts';
+
 export type ScanSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'PASS';
 
 export interface RealScanFinding {
@@ -38,6 +40,7 @@ export interface RealRepoScanResult {
   scannedLinesCount: number;
   filesScanned: string[];
   findings: RealScanFinding[];
+  anchorLintResult?: AnchorLintResult;
   summary: {
     criticalCount: number;
     highCount: number;
@@ -373,6 +376,9 @@ function analyzeClientDappFile(filePath: string, content: string): RealScanFindi
  * Zero mocks: inspeciona o conteudo real de cada arquivo fornecido.
  */
 export function runRealRepositoryScan(files: FileToScan[]): RealRepoScanResult {
+  // Execucao previa automatica do linter de anti-patterns Anchor
+  const anchorLintResult = runAnchorLint(files);
+
   const allFindings: RealScanFinding[] = [];
   let totalLines = 0;
   const scannedFileNames: string[] = [];
@@ -415,6 +421,7 @@ export function runRealRepositoryScan(files: FileToScan[]): RealRepoScanResult {
     scannedLinesCount: totalLines,
     filesScanned: scannedFileNames,
     findings: allFindings,
+    anchorLintResult,
     summary: {
       criticalCount,
       highCount,

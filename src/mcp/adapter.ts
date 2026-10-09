@@ -19,6 +19,7 @@ import { runRealRepositoryScan, FileToScan } from '../services/realRepoScanner.t
 import { createRealGitHubIssues } from '../services/githubIssueService.ts';
 import { executeEgcOneClickFlow, getTargetRepositoryFiles } from '../services/egcCommandCenterService.ts';
 import { extractRepositoryArchitectureContext } from '../services/contextualEngine.ts';
+import { runAnchorLint } from '../lint/anchorLint.ts';
 
 export interface GenerateContractArgs {
   programName?: string;
@@ -202,5 +203,13 @@ export class EgcMcpExecutionAdapter {
   public static async analyzeContextualArchitecture(files?: FileToScan[]) {
     const targetFiles = files && files.length > 0 ? files : await getTargetRepositoryFiles();
     return extractRepositoryArchitectureContext(targetFiles);
+  }
+
+  /**
+   * 11. Static Solana Anchor Linter (anchor-lint)
+   */
+  public static async runAnchorLinter(files?: FileToScan[]) {
+    const targetFiles = files && files.length > 0 ? files : await getTargetRepositoryFiles();
+    return runAnchorLint(targetFiles);
   }
 }

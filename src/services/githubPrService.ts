@@ -108,8 +108,10 @@ async function ensureRemoteBranchAndCommits(
   filesToCommit: GitHubCommitFile[],
   commitMessage?: string
 ): Promise<{ resolvedBase: string; branchHeadSha: string }> {
-  // Declaracao segura de variavel de tempo no escopo da funcao (Regra C44)
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  // Declaracao segura de variaveis de tempo no escopo da funcao (Regra C44)
+  const commitDate = new Date().toISOString();
+  const branchTimestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const timestamp = branchTimestamp;
 
   // 1. Verificar existencia e acessibilidade do repositorio
   const repoRes = await fetchGitHubApi(`https://api.github.com/repos/${owner}/${repo}`, token);
@@ -176,7 +178,7 @@ async function ensureRemoteBranchAndCommits(
         `- Autor: Marco Antonio Conceicao\n` +
         `- Ramo de Origem (Head): ${headBranch}\n` +
         `- Ramo Alvo (Base): ${resolvedBase}\n` +
-        `- Data da Auditoria: ${timestamp}\n` +
+        `- Data da Auditoria: ${commitDate}\n` +
         `- Protocolo: AST, GraphRAG & DDD Security Verified\n\n` +
         `### Verificacoes de Seguranca On-Chain:\n` +
         `- Checked Arithmetic (checked_add / checked_sub) ativo contra transbordamentos.\n` +
@@ -224,11 +226,11 @@ async function ensureRemoteBranchAndCommits(
 
   const newTreeSha = newTreeRes.data.sha;
 
-  // 7. Criar novo commit com autoria 100% de Marco Antonio Conceicao
+  // 7. Criar novo commit com autoria 100% de Marco Antonio Conceicao (ISO 8601 valido)
   const authorInfo = {
     name: 'Marco Antonio Conceicao',
     email: 'mrcoantonioconceicao@gmail.com',
-    date: timestamp,
+    date: commitDate,
   };
 
   const finalCommitMessage = commitMessage ||
@@ -291,8 +293,10 @@ async function ensureRemoteBranchAndCommits(
 export async function createGitHubPullRequest(options: CreateGitHubPrOptions): Promise<GitHubPrResult> {
   const { token, owner, repoName, branchName, baseBranch, title, body, contractCode, commitMessage, files } = options;
 
-  // Declaracao segura de variavel de tempo no escopo da funcao (Regra C44)
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  // Declaracao segura de variaveis de tempo no escopo da funcao (Regra C44)
+  const commitDate = new Date().toISOString();
+  const branchTimestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const timestamp = branchTimestamp;
 
   // 1. Validacao estrita do Token PAT
   const tokenValidation = validateGitHubToken(token);
@@ -303,7 +307,7 @@ export async function createGitHubPullRequest(options: CreateGitHubPrOptions): P
   const trimmedToken = token.trim();
   const targetOwner = (owner || '').trim();
   const targetRepo = (repoName || '').trim();
-  const targetHeadBranch = (branchName || `corrigido/remediacao-c44-${timestamp}`).trim();
+  const targetHeadBranch = (branchName || `corrigido/remediacao-c44-${branchTimestamp}`).trim();
 
   if (!targetOwner) {
     throw new Error('O utilizador ou organização do GitHub é obrigatório.');

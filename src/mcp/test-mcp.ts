@@ -190,6 +190,31 @@ async function runTests() {
   console.log('');
 
   // -------------------------------------------------------------
+  // Test 7: Static Solana Anchor Lint (anchor-lint) Engine
+  // -------------------------------------------------------------
+  console.log(`${BOLD}[7/7] Testing Solana Anchor Lint (anchor-lint) Engine...${RESET}`);
+  const lintResult: any = await executeMcpToolDirect('run_anchor_lint', {});
+  assert(lintResult && lintResult.filesInspected.length > 0, 'anchor-lint inspects physical Rust files');
+  assert(lintResult.passed === true, 'anchor-lint passes on secure contracts with zero errors');
+  assert(lintResult.errorCount === 0, 'Zero anti-pattern errors on production codebase');
+
+  // Test anti-pattern detection on intentionally vulnerable code
+  const vulnerableAnchorCode = `
+    #[derive(Accounts)]
+    pub struct Insecure<'info> {
+      pub authority: AccountInfo<'info>,
+      #[account(mut)]
+      pub counter: Account<'info, UserCounter>,
+    }
+  `;
+  const antiPatternTest: any = await executeMcpToolDirect('run_anchor_lint', {
+    files: [{ path: 'programs/test/src/vulnerable.rs', content: vulnerableAnchorCode }]
+  });
+  assert(antiPatternTest.passed === false, 'anchor-lint detects anti-patterns in vulnerable code');
+  assert(antiPatternTest.issues.length >= 2, 'anchor-lint flags unvalidated AccountInfo authority and missing has_one');
+  console.log('');
+
+  // -------------------------------------------------------------
   // Summary
   // -------------------------------------------------------------
   console.log(`${BOLD}${GREEN}================================================================${RESET}`);

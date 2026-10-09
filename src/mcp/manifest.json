@@ -255,6 +255,20 @@
           }
         }
       }
+    },
+    {
+      "name": "run_anchor_lint",
+      "displayName": "Run Solana Anchor Lint (anchor-lint)",
+      "description": "Runs static anchor-lint to detect Solana anti-patterns (signer auth, has_one, checked arithmetic, PDA seeds) automatically before AST analysis.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "files": {
+            "type": "array",
+            "description": "Optional list of physical repository files to lint"
+          }
+        }
+      }
     }
   ]
 }
