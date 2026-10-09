@@ -12,7 +12,6 @@
 
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 
 export interface AnchorLintIssue {
   ruleId: string;
@@ -140,80 +139,92 @@ export function parseAnchorLintToml(tomlContent: string): AnchorLintConfig {
   return config;
 }
 
+export const DEFAULT_ANCHOR_LINT_CONFIG: AnchorLintConfig = {
+  name: 'anchor-lint',
+  version: '1.0.0',
+  author: 'Marco Antonio Conceicao',
+  targetFiles: ['programs/**/*.rs'],
+  ignorePatterns: ['target/**', 'node_modules/**'],
+  rules: {
+    'signer-authorization': {
+      enabled: true,
+      severity: 'error',
+      ruleId: 'ANCHOR-LINT-001',
+      description: 'Exige Signer<\'info> para autoridades de conta'
+    },
+    'ownership-constraint': {
+      enabled: true,
+      severity: 'error',
+      ruleId: 'ANCHOR-LINT-002',
+      description: 'Exige has_one = authority em mutacoes de conta'
+    },
+    'checked-arithmetic': {
+      enabled: true,
+      severity: 'error',
+      ruleId: 'ANCHOR-LINT-003',
+      description: 'Exige operacoes aritmeticas com checked_add / checked_sub'
+    },
+    'deterministic-pda-seeds': {
+      enabled: true,
+      severity: 'error',
+      ruleId: 'ANCHOR-LINT-004',
+      description: 'Exige sementes canonicas e gravacao de bump'
+    },
+    'rent-exempt-space': {
+      enabled: true,
+      severity: 'error',
+      ruleId: 'ANCHOR-LINT-005',
+      description: 'Exige alocacao exata de memoria rent-exempt'
+    },
+    'safe-account-closing': {
+      enabled: true,
+      severity: 'warning',
+      ruleId: 'ANCHOR-LINT-006',
+      description: 'Exige devolucao de lamports via close = authority'
+    }
+  }
+};
+
 /**
  * Carrega a configuracao oficial .anchor-lint.toml ou anchor-lint.json na raiz do projeto
  */
 export function loadAnchorLintConfig(rootDir?: string): AnchorLintConfig {
-  const baseDir = rootDir || process.cwd();
-  const tomlPath = path.resolve(baseDir, '.anchor-lint.toml');
-  const jsonPath = path.resolve(baseDir, 'anchor-lint.json');
-
-  // Prioridade 1: .anchor-lint.toml
-  if (fs.existsSync(tomlPath)) {
-    try {
-      const content = fs.readFileSync(tomlPath, 'utf-8');
-      return parseAnchorLintToml(content);
-    } catch {
-      // Fallback para JSON
-    }
+  // Ambiente de navegador (browser) nao possui sistema de arquivos local fs
+  const isBrowser = typeof window !== 'undefined' || typeof process === 'undefined' || !process?.versions?.node;
+  if (isBrowser) {
+    return DEFAULT_ANCHOR_LINT_CONFIG;
   }
 
-  // Prioridade 2: anchor-lint.json
-  if (fs.existsSync(jsonPath)) {
-    try {
-      const content = fs.readFileSync(jsonPath, 'utf-8');
-      return JSON.parse(content);
-    } catch {
-      // Retorna defaults se falhar parsing
+  try {
+    const baseDir = rootDir || (typeof process.cwd === 'function' ? process.cwd() : '.');
+    const tomlPath = path.resolve(baseDir, '.anchor-lint.toml');
+    const jsonPath = path.resolve(baseDir, 'anchor-lint.json');
+
+    // Prioridade 1: .anchor-lint.toml
+    if (fs && typeof fs.existsSync === 'function' && fs.existsSync(tomlPath)) {
+      try {
+        const content = fs.readFileSync(tomlPath, 'utf-8');
+        return parseAnchorLintToml(content);
+      } catch {
+        // Fallback para JSON
+      }
     }
+
+    // Prioridade 2: anchor-lint.json
+    if (fs && typeof fs.existsSync === 'function' && fs.existsSync(jsonPath)) {
+      try {
+        const content = fs.readFileSync(jsonPath, 'utf-8');
+        return JSON.parse(content);
+      } catch {
+        // Retorna defaults se falhar parsing
+      }
+    }
+  } catch {
+    // Retorna defaults em caso de excecao de I/O em runtime hibrido
   }
 
   // Configuracao padrao de seguranca
-  return {
-    name: 'anchor-lint',
-    version: '1.0.0',
-    author: 'Marco Antonio Conceicao',
-    targetFiles: ['programs/**/*.rs'],
-    ignorePatterns: ['target/**', 'node_modules/**'],
-    rules: {
-      'signer-authorization': {
-        enabled: true,
-        severity: 'error',
-        ruleId: 'ANCHOR-LINT-001',
-        description: 'Exige Signer<\'info> para autoridades de conta'
-      },
-      'ownership-constraint': {
-        enabled: true,
-        severity: 'error',
-        ruleId: 'ANCHOR-LINT-002',
-        description: 'Exige has_one = authority em mutacoes de conta'
-      },
-      'checked-arithmetic': {
-        enabled: true,
-        severity: 'error',
-        ruleId: 'ANCHOR-LINT-003',
-        description: 'Exige operacoes aritmeticas com checked_add / checked_sub'
-      },
-      'deterministic-pda-seeds': {
-        enabled: true,
-        severity: 'error',
-        ruleId: 'ANCHOR-LINT-004',
-        description: 'Exige sementes canonicas e gravacao de bump'
-      },
-      'rent-exempt-space': {
-        enabled: true,
-        severity: 'error',
-        ruleId: 'ANCHOR-LINT-005',
-        description: 'Exige alocacao exata de memoria rent-exempt'
-      },
-      'safe-account-closing': {
-        enabled: true,
-        severity: 'warning',
-        ruleId: 'ANCHOR-LINT-006',
-        description: 'Exige devolucao de lamports via close = authority'
-      }
-    }
-  };
+  return DEFAULT_ANCHOR_LINT_CONFIG;
 }
 
 /**
@@ -374,8 +385,15 @@ export function runAnchorLint(
   };
 }
 
-// CLI Runner direto para 'npm run anchor-lint'
-if (process.argv[1] && (process.argv[1].endsWith('anchorLint.ts') || process.argv[1].endsWith('anchor-lint'))) {
+// CLI Runner direto para 'npm run anchor-lint' (apenas em ambiente Node.js)
+const isDirectCliExecution =
+  typeof window === 'undefined' &&
+  typeof process !== 'undefined' &&
+  Array.isArray(process?.argv) &&
+  typeof process.argv[1] === 'string' &&
+  (process.argv[1].endsWith('anchorLint.ts') || process.argv[1].endsWith('anchor-lint'));
+
+if (isDirectCliExecution) {
   const rootDir = process.cwd();
   const candidateFiles = [
     'programs/solana_sandbox_counter/src/lib.rs',

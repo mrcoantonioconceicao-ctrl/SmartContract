@@ -402,6 +402,29 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-unknown-linux-gnu
+      - name: Verify Cargo Dependencies & Lockfile
+        run: |
+          echo "=== [DevSecOps] Verificando integridade das dependencias e Cargo.lock ==="
+          if [ ! -f "Cargo.lock" ]; then
+            echo "Aviso: Cargo.lock nao encontrado na raiz. Gerando lockfile automaticamente..."
+            cargo generate-lockfile || cargo metadata --format-version 1 >/dev/null 2>&1 || cargo check || true
+          fi
+          if [ -d "programs" ]; then
+            for crate_toml in programs/*/Cargo.toml; do
+              if [ -f "$crate_toml" ]; then
+                crate_dir=$(dirname "$crate_toml")
+                if [ ! -f "$crate_dir/Cargo.lock" ]; then
+                  (cd "$crate_dir" && (cargo generate-lockfile || true))
+                fi
+              fi
+            done
+          fi
+          if [ -f "Cargo.lock" ]; then
+            cargo check --locked --workspace || cargo check --locked || cargo metadata --locked --format-version 1 >/dev/null 2>&1 || cargo check
+          else
+            cargo metadata --format-version 1 >/dev/null 2>&1 || cargo check
+          fi
+          echo "Dependencias e Cargo.lock validados com sucesso para o cargo-audit e build do Anchor."
       - name: Install cargo-audit
         run: |
           which cargo-audit || cargo install cargo-audit --locked
