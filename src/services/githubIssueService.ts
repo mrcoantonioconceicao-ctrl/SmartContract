@@ -9,12 +9,14 @@
 
 import { RealScanFinding } from './realRepoScanner.ts';
 import { validateGitHubToken } from './githubPrService.ts';
+import { ContextualRepositoryArchitecture, enrichFindingWithContext } from './contextualEngine.ts';
 
 export interface CreateGitHubIssuesOptions {
   token: string;
   owner: string;
   repoName: string;
   findings: RealScanFinding[];
+  context?: ContextualRepositoryArchitecture;
 }
 
 export interface CreatedGitHubIssue {
@@ -41,7 +43,7 @@ export interface CreateGitHubIssuesResult {
 export async function createRealGitHubIssues(
   options: CreateGitHubIssuesOptions
 ): Promise<CreateGitHubIssuesResult> {
-  const { token, owner, repoName, findings } = options;
+  const { token, owner, repoName, findings, context } = options;
 
   // 1. Validacao previa do token
   const tokenValidation = validateGitHubToken(token);
@@ -72,6 +74,7 @@ export async function createRealGitHubIssues(
   };
 
   for (const finding of targetFindings) {
+    const contextualSection = context ? enrichFindingWithContext(finding, context) : '';
     const issueTitle = `🛡️ [Solana DevSecOps] ${finding.severity}: ${finding.title}`;
     const issueBody = `## Relatorio de Auditoria de Seguranca Solana Anchor
 **Autoria da Auditoria:** Marco Antonio Conceicao
@@ -84,14 +87,14 @@ export async function createRealGitHubIssues(
 ${finding.description}
 
 ${finding.snippet ? `### 📝 Trecho Inspecionado\n\`\`\`rust\n${finding.snippet}\n\`\`\`\n` : ''}
-
+${contextualSection}
 ### 💡 Recomendacao de Seguranca
 ${finding.recommendation}
 
-${finding.remediationCode ? `### 🛠️ Codigo de Remediacao Sugerido\n\`\`\`rust\n${finding.remediationCode}\n\`\`\`\n` : ''}
+${finding.remediationCode ? `### 🛠️ Codigo de Remediacao Sugerido (Regra C44 - Nao-Destrutivo)\n\`\`\`rust\n${finding.remediationCode}\n\`\`\`\n` : ''}
 
 ---
-*Gerado automaticamente pelo Centro de Comando EGC & Solana Anchor DevSecOps IDE.*`;
+*Gerado com Engenharia Contextual (GraphRAG, DDD, SOA & AST) pelo Centro de Comando EGC.*`;
 
     const labels = ['security', 'solana', 'anchor-lang', 'audit', finding.severity.toLowerCase()];
 

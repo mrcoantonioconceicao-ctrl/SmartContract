@@ -18,6 +18,7 @@ import { buildContractSecurityGraph } from '../services/graphRAGService.ts';
 import { runRealRepositoryScan, FileToScan } from '../services/realRepoScanner.ts';
 import { createRealGitHubIssues } from '../services/githubIssueService.ts';
 import { executeEgcOneClickFlow, getTargetRepositoryFiles } from '../services/egcCommandCenterService.ts';
+import { extractRepositoryArchitectureContext } from '../services/contextualEngine.ts';
 
 export interface GenerateContractArgs {
   programName?: string;
@@ -162,9 +163,11 @@ export class EgcMcpExecutionAdapter {
     repoName: string;
     findings?: any[];
   }) {
+    const targetFiles = await getTargetRepositoryFiles();
+    const context = extractRepositoryArchitectureContext(targetFiles);
     let findings = options.findings;
     if (!findings || findings.length === 0) {
-      const scan = await this.scanRepositoryAst();
+      const scan = await this.scanRepositoryAst(targetFiles);
       findings = scan.findings;
     }
     return createRealGitHubIssues({
@@ -172,6 +175,7 @@ export class EgcMcpExecutionAdapter {
       owner: options.owner,
       repoName: options.repoName,
       findings,
+      context,
     });
   }
 
@@ -190,5 +194,13 @@ export class EgcMcpExecutionAdapter {
       repoName: options.repoName,
       branchName: options.branchName,
     });
+  }
+
+  /**
+   * 10. Contextual Architecture Analysis (GraphRAG, DDD, SOA & AST)
+   */
+  public static async analyzeContextualArchitecture(files?: FileToScan[]) {
+    const targetFiles = files && files.length > 0 ? files : await getTargetRepositoryFiles();
+    return extractRepositoryArchitectureContext(targetFiles);
   }
 }

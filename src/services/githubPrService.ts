@@ -108,6 +108,9 @@ async function ensureRemoteBranchAndCommits(
   filesToCommit: GitHubCommitFile[],
   commitMessage?: string
 ): Promise<{ resolvedBase: string; branchHeadSha: string }> {
+  // Declaracao segura de variavel de tempo no escopo da funcao (Regra C44)
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+
   // 1. Verificar existencia e acessibilidade do repositorio
   const repoRes = await fetchGitHubApi(`https://api.github.com/repos/${owner}/${repo}`, token);
   if (!repoRes.ok) {
@@ -164,23 +167,32 @@ async function ensureRemoteBranchAndCommits(
   // 4. Preparar arquivos para envio de commit
   const filesList: GitHubCommitFile[] = [...filesToCommit];
 
-  // Adicionar relatorio de auditoria e remediacao garantindo alteracao rastreavel por Marco Antonio Conceicao
-  const timestamp = new Date().toISOString();
-  filesList.push({
-    path: 'SECURITY_AUDIT_REPORT.md',
-    content: `# Relatorio de Remediacao de Seguranca - Solana Anchor DevSecOps\n\n` +
-      `- Autor: Marco Antonio Conceicao\n` +
-      `- Ramo de Origem (Head): ${headBranch}\n` +
-      `- Ramo Alvo (Base): ${resolvedBase}\n` +
-      `- Data da Auditoria: ${timestamp}\n` +
-      `- Protocolo: AST & GraphRAG Security Verified\n\n` +
-      `### Verificacoes de Seguranca On-Chain:\n` +
-      `- Checked Arithmetic (checked_add / checked_sub) ativo contra transbordamentos.\n` +
-      `- Derivacao de PDA deterministico com sementes canónicas e verificacao de bump.\n` +
-      `- Autorizacao estrita com restricao "has_one = authority" e Signer<'info>.\n` +
-      `- Espaco exato rent-exempt alocado (49 bytes).\n\n` +
-      `> Politica de Seguranca: Merge automatico desativado. Este Pull Request exige aprovacao manual.\n`,
-  });
+  // Adicionar relatorio de auditoria se nao estiver previamente incluido
+  const hasAuditReport = filesList.some(f => f.path === 'SECURITY_AUDIT_REPORT.md');
+  if (!hasAuditReport) {
+    filesList.push({
+      path: 'SECURITY_AUDIT_REPORT.md',
+      content: `# Relatorio de Remediacao de Seguranca - Solana Anchor DevSecOps\n\n` +
+        `- Autor: Marco Antonio Conceicao\n` +
+        `- Ramo de Origem (Head): ${headBranch}\n` +
+        `- Ramo Alvo (Base): ${resolvedBase}\n` +
+        `- Data da Auditoria: ${timestamp}\n` +
+        `- Protocolo: AST, GraphRAG & DDD Security Verified\n\n` +
+        `### Verificacoes de Seguranca On-Chain:\n` +
+        `- Checked Arithmetic (checked_add / checked_sub) ativo contra transbordamentos.\n` +
+        `- Derivacao de PDA deterministico com sementes canonicas e verificacao de bump.\n` +
+        `- Autorizacao estrita com restricao "has_one = authority" e Signer<'info>.\n` +
+        `- Espaco exato rent-exempt alocado (49 bytes).\n\n` +
+        `> Politica de Seguranca: Merge automatico desativado. Este Pull Request exige aprovacao manual.\n`,
+    });
+  }
+
+  // Deduplicacao cirurgica de arquivos por path (Regra C44)
+  const uniqueFilesMap = new Map<string, GitHubCommitFile>();
+  for (const file of filesList) {
+    uniqueFilesMap.set(file.path, file);
+  }
+  const finalizedFiles = Array.from(uniqueFilesMap.values());
 
   // 5. Obter a arvore de arquivos (tree) do commit atual
   const commitRes = await fetchGitHubApi(`https://api.github.com/repos/${owner}/${repo}/git/commits/${currentHeadSha}`, token);
@@ -191,7 +203,7 @@ async function ensureRemoteBranchAndCommits(
   }
 
   // 6. Criar nova arvore Git com os arquivos alterados
-  const treePayload = filesList.map((file) => ({
+  const treePayload = finalizedFiles.map((file) => ({
     path: file.path,
     mode: '100644',
     type: 'blob',
@@ -279,6 +291,9 @@ async function ensureRemoteBranchAndCommits(
 export async function createGitHubPullRequest(options: CreateGitHubPrOptions): Promise<GitHubPrResult> {
   const { token, owner, repoName, branchName, baseBranch, title, body, contractCode, commitMessage, files } = options;
 
+  // Declaracao segura de variavel de tempo no escopo da funcao (Regra C44)
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+
   // 1. Validacao estrita do Token PAT
   const tokenValidation = validateGitHubToken(token);
   if (!tokenValidation.valid) {
@@ -288,7 +303,7 @@ export async function createGitHubPullRequest(options: CreateGitHubPrOptions): P
   const trimmedToken = token.trim();
   const targetOwner = (owner || '').trim();
   const targetRepo = (repoName || '').trim();
-  const targetHeadBranch = (branchName || `corrigido/remediacao-c44-${Date.now().toString(36)}`).trim();
+  const targetHeadBranch = (branchName || `corrigido/remediacao-c44-${timestamp}`).trim();
 
   if (!targetOwner) {
     throw new Error('O utilizador ou organização do GitHub é obrigatório.');

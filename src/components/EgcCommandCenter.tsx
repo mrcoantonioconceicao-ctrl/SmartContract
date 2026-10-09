@@ -37,6 +37,10 @@ import {
 } from '../services/egcCommandCenterService.ts';
 import { runRealRepositoryScan, RealRepoScanResult } from '../services/realRepoScanner.ts';
 import { generateAuditablePdfReport } from '../services/pdfReportService.ts';
+import {
+  extractRepositoryArchitectureContext,
+  ContextualRepositoryArchitecture
+} from '../services/contextualEngine.ts';
 
 const STORAGE_KEY_TOKEN = 'github_sync_token';
 const STORAGE_KEY_OWNER = 'github_sync_owner';
@@ -52,14 +56,17 @@ export function EgcCommandCenter() {
   const [currentStep, setCurrentStep] = useState<EgcFlowStepStatus | null>(null);
   const [executionResult, setExecutionResult] = useState<EgcOneClickExecutionResult | null>(null);
   const [liveScan, setLiveScan] = useState<RealRepoScanResult | null>(null);
-  const [activeTab, setActiveTab] = useState<'guarantees' | 'findings' | 'issues' | 'files'>('guarantees');
+  const [contextArch, setContextArch] = useState<ContextualRepositoryArchitecture | null>(null);
+  const [activeTab, setActiveTab] = useState<'context' | 'guarantees' | 'findings' | 'issues' | 'files'>('context');
 
-  // Carrega varredura real inicial dos arquivos do projeto
+  // Carrega varredura real inicial dos arquivos do projeto e analise contextual
   useEffect(() => {
     async function loadInitialScan() {
       const files = await getTargetRepositoryFiles();
       const scan = runRealRepositoryScan(files);
+      const arch = extractRepositoryArchitectureContext(files);
       setLiveScan(scan);
+      setContextArch(arch);
     }
     loadInitialScan();
   }, []);
@@ -103,6 +110,9 @@ export function EgcCommandCenter() {
       setExecutionResult(result);
       if (result.scanResult) {
         setLiveScan(result.scanResult);
+      }
+      if (result.context) {
+        setContextArch(result.context);
       }
     } catch (err: any) {
       setCurrentStep({
@@ -416,6 +426,18 @@ export function EgcCommandCenter() {
       <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
         <div className="flex border-b border-slate-800 bg-slate-950/60 overflow-x-auto">
           <button
+            onClick={() => setActiveTab('context')}
+            className={`px-5 py-3 text-xs font-mono font-medium transition-all flex items-center space-x-2 border-b-2 ${
+              activeTab === 'context'
+                ? 'border-cyan-400 text-cyan-400 bg-slate-900'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Layers className="w-4 h-4" />
+            <span>Contexto GraphRAG & DDD (Regra C44)</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('guarantees')}
             className={`px-5 py-3 text-xs font-mono font-medium transition-all flex items-center space-x-2 border-b-2 ${
               activeTab === 'guarantees'
@@ -465,6 +487,146 @@ export function EgcCommandCenter() {
         </div>
 
         <div className="p-6">
+          {/* TAB CONTEXTO: GRAPHRAG, DDD, SOA & AST */}
+          {activeTab === 'context' && (
+            <div className="space-y-6">
+              {/* Header Contextual */}
+              <div className="p-4 rounded-xl bg-slate-950/80 border border-cyan-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs font-mono font-bold text-cyan-400 uppercase tracking-wider">
+                      Arquitetura Contextual Integrada
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                      Regra C44: Nao-Destrutiva
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-1 max-w-2xl">
+                    {contextArch?.architecturalSummary || 'Inspecao em tempo real da arvore fisica de arquivos, grafo de dependencias GraphRAG e invariantes de dominio DDD.'}
+                  </p>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="text-[10px] font-mono text-slate-400">Score de Risco Semantico:</div>
+                  <div className="text-lg font-mono font-black text-emerald-400">
+                    {contextArch?.graphRag.crossInstructionRiskScore || 100}/100 [SEGURO]
+                  </div>
+                </div>
+              </div>
+
+              {/* Matriz de Invariantes DDD */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <ShieldCheck className="w-4 h-4 text-cyan-400" />
+                    <h3 className="text-xs font-mono font-bold text-slate-200 uppercase tracking-wider">
+                      Invariantes do Bounded Context ({contextArch?.dddModel.boundedContext || 'SolanaAnchorCounterDomain'})
+                    </h3>
+                  </div>
+                  <span className="text-[11px] font-mono text-slate-400">
+                    Aggregate Root: <strong className="text-cyan-300">{contextArch?.dddModel.aggregateRoot || 'UserCounter'}</strong>
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {contextArch?.dddModel.invariants.map((inv) => (
+                    <div
+                      key={inv.id}
+                      className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-mono font-bold text-slate-200">{inv.name}</span>
+                        <span
+                          className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+                            inv.status === 'VERIFIED'
+                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                              : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                          }`}
+                        >
+                          {inv.status}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400">{inv.description}</p>
+                      <code className="block bg-slate-900 text-cyan-300 text-[10px] p-1.5 rounded font-mono border border-slate-800 overflow-x-auto">
+                        Regra: {inv.formalRule}
+                      </code>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Vetores de Ataque Semanticos GraphRAG */}
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <Cpu className="w-4 h-4 text-cyan-400" />
+                  <h3 className="text-xs font-mono font-bold text-slate-200 uppercase tracking-wider">
+                    Vetores de Ataque e Grafos de Dependencia (GraphRAG)
+                  </h3>
+                </div>
+
+                <div className="space-y-3">
+                  {contextArch?.graphRag.attackPaths.map((ap) => (
+                    <div
+                      key={ap.id}
+                      className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-xs font-mono font-bold text-cyan-400">[{ap.id}]</span>
+                          <span className="text-xs font-semibold text-slate-200">{ap.title}</span>
+                        </div>
+                        <span
+                          className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+                            ap.status === 'MITIGATED'
+                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                              : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                          }`}
+                        >
+                          {ap.status}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400"><strong>Objetivo do Atacante:</strong> {ap.attackerGoal}</p>
+                      <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-800 text-[11px] font-mono text-slate-300 space-y-1">
+                        <div className="text-slate-400 font-bold text-[10px] uppercase">Cadeia de Inspecao Semantica:</div>
+                        {ap.steps.map((st, sidx) => (
+                          <div key={sidx} className="text-slate-300 pl-2 border-l border-slate-700">{st}</div>
+                        ))}
+                      </div>
+                      <div className="text-[11px] font-mono text-emerald-400">
+                        Mitigacao Verificada: {ap.mitigationInContract}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Rastreabilidade com Microservicos SOA */}
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <Terminal className="w-4 h-4 text-cyan-400" />
+                  <h3 className="text-xs font-mono font-bold text-slate-200 uppercase tracking-wider">
+                    Catalogo Integrado de Microservicos SOA
+                  </h3>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {contextArch?.soaServices.map((srv) => (
+                    <div
+                      key={srv.serviceId}
+                      className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 space-y-1"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-mono font-bold text-cyan-400">{srv.serviceId}</span>
+                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">{srv.status}</span>
+                      </div>
+                      <div className="text-xs font-semibold text-slate-200">{srv.name}</div>
+                      <p className="text-[11px] text-slate-400 line-clamp-2">{srv.roleInAudit}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
           {activeTab === 'guarantees' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between pb-2 border-b border-slate-800">

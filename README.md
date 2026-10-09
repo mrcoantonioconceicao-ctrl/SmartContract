@@ -244,14 +244,25 @@ O modulo `src/services/realRepoScanner.ts` elimina completamente simulacoes sint
 
 ---
 
-## 5. Fluxo Automatizado de Um Clique ("Criar Issues")
+## 5. Fluxo Automatizado de Um Clique ("Criar Issues") com Engenharia Contextual
 
-No Centro de Comando EGC, os engenheiros encontram o botao dedicado **"Criar Issues"**. Ao clicar neste botao, o orquestrador `src/services/egcCommandCenterService.ts` executa um pipeline atômico em 4 estagios:
+No Centro de Comando EGC, os engenheiros encontram o botao dedicado **"Criar Issues"**. Ao acionar o fluxo, o orquestrador `src/services/egcCommandCenterService.ts` opera sob rigorosa conformidade com a **Regra C44 (Nao-Destrutiva)** e com o motor de analise contextual (`src/services/contextualEngine.ts`):
 
-1. **Varredura Profunda dos Arquivos Fisicos:** Executa `runRealRepositoryScan` sobre o codigo Rust e TypeScript do projeto.
-2. **Criacao de Issues no GitHub:** Envia as vulnerabilidades identificadas diretamente para o endpoint `POST /repos/{owner}/{repo}/issues` da API oficial do GitHub, com formatacao detalhada em Markdown e rotulos categorizados (`solana`, `security`, `pda`, `audit`).
-3. **Abertura de Pull Request Seguro:** Executa `createGitHubPullRequest` com validacao previa de branch remota e commit, prevenindo o erro HTTP 422 (Validation Failed: head).
-4. **Geracao do Relatorio PDF Formal:** Compila o relatorio auditavel com dados criptograficos, resumo de vulnerabilidades e carimbo de data/hora oficial.
+1. **Analise Contextual Obrigatoria Previa:**
+   - Inspeciona a arvore fisica de arquivos do repositorio (`/api/egc/physical-files`).
+   - Mapeia o grafo semantico de dependencias entre instrucoes com o **GraphRAG** (`buildContractSecurityGraph`), avaliando vetores de ataque cruzados (`AP-1`, `AP-2`, `AP-3`).
+   - Extrai o Bounded Context de **Domain-Driven Design (DDD)** (`SolanaAnchorCounterDomain`), validando invariantes matematicos e de acesso da raiz de agregacao (`UserCounter`).
+   - Correlaciona a execucao com o catalogo unificado de microservicos **SOA**.
+2. **Criacao de Issues Enriquecidas no GitHub:**
+   - Envia as vulnerabilidades identificadas para a API oficial do GitHub (`POST /repos/{owner}/{repo}/issues`).
+   - Cada issue contem rastreabilidade completa: linha da AST, vetor GraphRAG mitigado, invariante DDD violado/atendido e patch cirurgico compativel com a Regra C44.
+3. **Abertura de Pull Request Cirurgico e Incremental (Regra C44):**
+   - **Proibicao Absoluta de Templates Genericos:** O sistema nunca sobrescreve arquivos do usuario com stubs vazios ou desconectados.
+   - O arquivo `client/index.ts` e preservado integralmente, sem substituicao por templates simplistas.
+   - O PR introduz modulos complementares e aditivos que respeitam a arquitetura DDD e SOA (ex: `programs/solana_sandbox_counter/src/domain.rs` e `SECURITY_AUDIT_REPORT.md`).
+   - Executa `createGitHubPullRequest` com validacao previa de branch remota e commit, prevenindo o erro HTTP 422 (Validation Failed: head).
+4. **Geracao do Relatorio PDF Formal:**
+   - Compila o relatorio auditavel formal com carimbo criptografico, matriz de invariantes DDD e topologia GraphRAG.
 
 ---
 

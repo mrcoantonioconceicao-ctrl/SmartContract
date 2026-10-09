@@ -16,6 +16,11 @@ import { GitHubPrResult } from './githubPrService.ts';
 import { generateAuditablePdfReport } from './pdfReportService.ts';
 import { RUST_CONTRACT_SOURCE } from '../contracts/solanaSandboxCounter.ts';
 import { generateGitHubPipelinePayload } from '../../client/index.ts';
+import {
+  extractRepositoryArchitectureContext,
+  buildSurgicalCommitFiles,
+  ContextualRepositoryArchitecture
+} from './contextualEngine.ts';
 
 export interface EgcFlowStepStatus {
   step: 'scan' | 'issues' | 'pr' | 'pdf' | 'completed';
@@ -34,6 +39,7 @@ export interface EgcOneClickExecutionOptions {
 export interface EgcOneClickExecutionResult {
   success: boolean;
   scanResult: RealRepoScanResult;
+  context: ContextualRepositoryArchitecture;
   issuesResult: CreateGitHubIssuesResult;
   prResult: GitHubPrResult | null;
   pdfFilename: string;
@@ -108,30 +114,31 @@ export async function executeEgcOneClickFlow(
   const errors: string[] = [];
 
   // --------------------------------------------------------------------------
-  // ETAPA 1: Varredura Real de Arquivos e AST (Zero Mocks)
+  // ETAPA 1: Varredura Real de Arquivos, AST & Contexto (GraphRAG, DDD, SOA)
   // --------------------------------------------------------------------------
   onStepProgress?.({
     step: 'scan',
     status: 'running',
-    message: 'Executando varredura real nos contratos inteligentes Rust/Anchor e arvore fisica do projeto...',
+    message: 'Executando analise de contexto obrigatoria: inspecionando AST, grafo GraphRAG e invariantes DDD...',
   });
 
   const files = await getTargetRepositoryFiles();
+  const archContext = extractRepositoryArchitectureContext(files);
   const scanResult = runRealRepositoryScan(files);
 
   onStepProgress?.({
     step: 'scan',
     status: 'success',
-    message: `Varredura real concluida: ${scanResult.scannedFilesCount} arquivos inspecionados, ${scanResult.findings.length} itens verificados (Score: ${scanResult.summary.securityScore}/100).`,
+    message: `Contexto mapeado: ${scanResult.scannedFilesCount} arquivos, GraphRAG (${archContext.graphRag.nodes.length} nos), DDD (${archContext.dddModel.invariants.length} invariantes). Score: ${scanResult.summary.securityScore}/100.`,
   });
 
   // --------------------------------------------------------------------------
-  // ETAPA 2: Criacao de Issues Reais no GitHub via API
+  // ETAPA 2: Criacao de Issues Reais no GitHub via API com Contexto Integrado
   // --------------------------------------------------------------------------
   onStepProgress?.({
     step: 'issues',
     status: 'running',
-    message: 'Criando e enviando issues reais para a API do GitHub...',
+    message: 'Criando e enviando issues reais para a API do GitHub com dados GraphRAG, DDD e SOA...',
   });
 
   let issuesResult: CreateGitHubIssuesResult;
@@ -141,6 +148,7 @@ export async function executeEgcOneClickFlow(
       owner,
       repoName,
       findings: scanResult.findings,
+      context: archContext,
     });
 
     if (issuesResult.errors.length > 0) {
@@ -179,10 +187,28 @@ export async function executeEgcOneClickFlow(
   });
 
   let prResult: GitHubPrResult | null = null;
-  const targetBranch = branchName.trim() || 'corrigido/remediacao-c44';
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const targetBranch = branchName.trim() || `corrigido/remediacao-c44-${timestamp}`;
 
   try {
-    const pipelinePayload = generateGitHubPipelinePayload(targetBranch);
+    const surgicalFiles = buildSurgicalCommitFiles(files, targetBranch, archContext);
+    const clientFileContent = files.find(f => f.path.includes('client/index.ts'))?.content;
+    const domainModuleContent = files.find(f => f.path.includes('domain.rs'))?.content;
+
+    const pipelinePayload = generateGitHubPipelinePayload({
+      branch: targetBranch,
+      repoName: `${owner}/${repoName}`,
+      clientContent: clientFileContent,
+      domainModuleCode: domainModuleContent,
+    });
+
+    // Assegura preservacao cirurgica e nao-destrutiva de arquivos (Regra C44)
+    pipelinePayload.commit.files = surgicalFiles.map(f => ({
+      path: f.path,
+      mode: '100644',
+      type: 'blob',
+      content: f.content,
+    }));
 
     const prResponse = await fetch('/api/github/sync', {
       method: 'POST',
@@ -271,6 +297,7 @@ export async function executeEgcOneClickFlow(
   return {
     success: errors.length === 0,
     scanResult,
+    context: archContext,
     issuesResult,
     prResult,
     pdfFilename,

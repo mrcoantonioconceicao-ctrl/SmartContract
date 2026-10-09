@@ -1,5 +1,7 @@
 use anchor_lang::prelude::*;
 
+pub mod domain;
+
 // Standard Sandbox Program ID for the Anchor Counter DevSecOps environment
 declare_id!("CntSandbox111111111111111111111111111111111");
 

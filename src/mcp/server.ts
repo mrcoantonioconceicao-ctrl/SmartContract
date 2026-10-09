@@ -152,6 +152,19 @@ export const MCP_TOOLS: McpToolDefinition[] = [
       required: ['token', 'owner', 'repoName'],
     },
   },
+  {
+    name: 'analyze_contextual_architecture',
+    description: 'Performs mandatory contextual analysis: maps GraphRAG semantic dependencies, DDD bounded context invariants, SOA services and AST.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        files: {
+          type: 'array',
+          description: 'Optional array of physical repository files to analyze',
+        },
+      },
+    },
+  },
 ];
 
 /**
@@ -249,6 +262,9 @@ export async function executeMcpToolDirect(toolName: string, args: Record<string
         repoName: args.repoName,
         branchName: args.branchName,
       });
+
+    case 'analyze_contextual_architecture':
+      return EgcMcpExecutionAdapter.analyzeContextualArchitecture(args.files);
 
     default:
       throw new Error(`Tool "${toolName}" not found in Solana Anchor DevSecOps MCP Server`);

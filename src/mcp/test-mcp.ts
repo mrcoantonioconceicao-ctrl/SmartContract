@@ -167,11 +167,26 @@ async function runTests() {
       repoName: 'SlipPay2',
     });
   } catch (err: any) {
-    if (err.message.includes('obrigatório')) {
+    if (err.message.includes('obrigatório') || err.message.includes('obrigatorio')) {
       missingTokenIssueBlocked = true;
     }
   }
   assert(missingTokenIssueBlocked, 'create_github_issues blocks empty token');
+  console.log('');
+
+  // -------------------------------------------------------------
+  // Test 6: Contextual Architecture Engine (GraphRAG, DDD, SOA & AST Context)
+  // -------------------------------------------------------------
+  console.log(`${BOLD}[6/6] Testing Contextual Architecture Engine (GraphRAG, DDD, SOA & AST)...${RESET}`);
+  const archResult: any = await executeMcpToolDirect('analyze_contextual_architecture', {});
+  assert(archResult && archResult.filesScanned.length > 0, 'Contextual engine inspects repository file tree');
+  assert(archResult.graphRag && archResult.graphRag.nodes.length >= 5, 'GraphRAG semantic graph maps cross-instruction nodes');
+  assert(archResult.graphRag.attackPaths.length >= 3, 'GraphRAG maps attack paths (Impersonation, Overflow, Rent)');
+  assert(archResult.dddModel.boundedContext === 'SolanaAnchorCounterDomain', 'DDD Bounded Context mapped correctly');
+  assert(archResult.dddModel.aggregateRoot === 'UserCounter', 'DDD Aggregate Root identified as UserCounter');
+  assert(archResult.dddModel.invariants.length >= 4, 'DDD Invariants verified for rent, PDA, math, and access');
+  assert(archResult.soaServices.length >= 5, 'SOA Microservices catalog linked to audit pipeline');
+  assert(archResult.ruleC44Compliant === true, 'Regra C44: Non-destructive compliance verified');
   console.log('');
 
   // -------------------------------------------------------------

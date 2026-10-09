@@ -22,8 +22,9 @@ app.use(express.json({ limit: '10mb' }));
 // 1. GitHub CI/CD Pipeline & PR Synchronization
 app.post('/api/github/sync', async (req, res) => {
   try {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const { token, owner, repoName, branchName, payload } = req.body;
-    const targetBranch = (branchName || payload?.targetBranch || '').trim();
+    const targetBranch = (branchName || payload?.targetBranch || `corrigido/remediacao-c44-${timestamp}`).trim();
     const commitFiles = payload?.commit?.files?.map((f: any) => ({
       path: f.path,
       content: f.content,
@@ -125,6 +126,7 @@ app.get('/api/egc/physical-files', (_req, res) => {
   try {
     const candidatePaths = [
       'programs/solana_sandbox_counter/src/lib.rs',
+      'programs/solana_sandbox_counter/src/domain.rs',
       'programs/solana_sandbox_counter/Cargo.toml',
       'Cargo.toml',
       'Anchor.toml',
