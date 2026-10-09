@@ -15,6 +15,7 @@ import { generateOmgBpmnXml } from './src/services/bpmnWorkflowService.ts';
 import { SOA_CATALOG } from './src/services/soaCatalogService.ts';
 import { runRealRepositoryScan } from './src/services/realRepoScanner.ts';
 import { createRealGitHubIssues } from './src/services/githubIssueService.ts';
+import { purgeEgcState } from './src/services/egcStateManager.ts';
 
 dotenv.config();
 
@@ -196,6 +197,16 @@ app.post('/api/github/issues', async (req, res) => {
     const msg = error.message || 'Falha ao criar issues no GitHub';
     const status = msg.includes('401') ? 401 : msg.includes('404') ? 404 : 400;
     res.status(status).json({ success: false, error: msg });
+  }
+});
+
+// 9. EGC State Clean & Auto-Purge Endpoint (egc clean)
+app.post('/api/egc/clean', (_req, res) => {
+  try {
+    const result = purgeEgcState();
+    res.json(result);
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 

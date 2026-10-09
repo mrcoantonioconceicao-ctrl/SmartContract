@@ -11,7 +11,7 @@ coverage/
 # Rust & Cargo artifacts
 target/
 **/*.rs.bk
-Cargo.lock
+# Cargo.lock is tracked for strict DevSecOps CI reproducibility
 
 # Solana & Anchor artifacts
 .anchor/

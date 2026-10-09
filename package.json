@@ -11,6 +11,8 @@
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "anchor-lint": "tsx src/lint/anchorLint.ts",
+    "egc:clean": "tsx src/mcp/egcClean.ts",
+    "clean:egc": "tsx src/mcp/egcClean.ts",
     "mcp": "tsx src/mcp/cli.ts",
     "test:mcp": "tsx src/mcp/test-mcp.ts"
   },

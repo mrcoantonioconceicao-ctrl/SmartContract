@@ -178,6 +178,14 @@ export const MCP_TOOLS: McpToolDefinition[] = [
       },
     },
   },
+  {
+    name: 'egc_clean_state',
+    description: 'Executes mandatory state cleanup (egc clean / auto-purge): clears in-memory active session cache, unlinks ~/.egc/state, and resets previous repository context for the next target.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
 ];
 
 /**
@@ -281,6 +289,10 @@ export async function executeMcpToolDirect(toolName: string, args: Record<string
 
     case 'run_anchor_lint':
       return EgcMcpExecutionAdapter.runAnchorLinter(args.files);
+
+    case 'egc_clean_state':
+    case 'clean_egc_state':
+      return EgcMcpExecutionAdapter.cleanEgcState();
 
     default:
       throw new Error(`Tool "${toolName}" not found in Solana Anchor DevSecOps MCP Server`);

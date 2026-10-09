@@ -39,7 +39,8 @@ import {
   Server,
   Share2,
   Box,
-  Compass
+  Compass,
+  Columns
 } from 'lucide-react';
 import { 
   PROGRAM_ID, 
@@ -85,12 +86,15 @@ import {
 } from './mcp/server.ts';
 import { GitHubSyncModal } from './components/GitHubSyncModal.tsx';
 import { EgcCommandCenter } from './components/EgcCommandCenter.tsx';
+import { PreviewRemediationModal } from './components/PreviewRemediationModal.tsx';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'egc' | 'ast' | 'fuzzing' | 'graphrag' | 'bpmn' | 'mcp' | 'soa' | 'contract' | 'client'>('egc');
   const [copied, setCopied] = useState<string | null>(null);
   const [wrapCode, setWrapCode] = useState<boolean>(false);
   const [isGitHubModalOpen, setIsGitHubModalOpen] = useState<boolean>(false);
+  const [previewFinding, setPreviewFinding] = useState<AstFinding | null>(null);
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState<boolean>(false);
   
   // Active Rust contract code
   const [activeRustCode, setActiveRustCode] = useState<string>(RUST_CONTRACT_SOURCE);
@@ -594,15 +598,28 @@ pub struct UserCounter { pub authority: Pubkey, pub count: u64, pub bump: u8 }`;
                       </div>
                       <p className="text-xs text-slate-400 mt-2">{finding.description}</p>
 
-                      {!isPass && finding.autoFixAvailable && finding.fixPatch && (
-                        <div className="mt-3 pt-2 border-t border-slate-800/80 flex justify-end">
+                      {!isPass && finding.autoFixAvailable && (
+                        <div className="mt-3 pt-2 border-t border-slate-800/80 flex flex-wrap items-center justify-end gap-2">
                           <button
-                            onClick={() => handleApplyQuickFix(finding)}
-                            className="px-3 py-1.5 bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white rounded-lg text-xs font-mono flex items-center gap-1.5 shadow-md shadow-purple-600/30"
+                            onClick={() => {
+                              setPreviewFinding(finding);
+                              setIsPreviewModalOpen(true);
+                            }}
+                            className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-cyan-500/40 text-cyan-300 rounded-lg text-xs font-mono flex items-center gap-1.5 shadow-sm transition-all hover:border-cyan-400"
                           >
-                            <Wrench className="w-3.5 h-3.5" />
-                            <span>Aplicar Correção Rápida</span>
+                            <Columns className="w-3.5 h-3.5 text-cyan-400" />
+                            <span>Preview Remediation (Diff)</span>
                           </button>
+
+                          {finding.fixPatch && (
+                            <button
+                              onClick={() => handleApplyQuickFix(finding)}
+                              className="px-3 py-1.5 bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white rounded-lg text-xs font-mono flex items-center gap-1.5 shadow-md shadow-purple-600/30"
+                            >
+                              <Wrench className="w-3.5 h-3.5" />
+                              <span>Aplicar Correção Rápida</span>
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -977,6 +994,24 @@ pub struct UserCounter { pub authority: Pubkey, pub count: u64, pub bump: u8 }`;
         isOpen={isGitHubModalOpen}
         onClose={() => setIsGitHubModalOpen(false)}
         pipelinePayload={githubPayload}
+      />
+
+      {/* Preview Remediation Side-by-Side Diff Modal */}
+      <PreviewRemediationModal
+        isOpen={isPreviewModalOpen}
+        onClose={() => setIsPreviewModalOpen(false)}
+        finding={previewFinding}
+        currentCode={activeRustCode}
+        onApplyFix={(patchedCode) => {
+          setActiveRustCode(patchedCode);
+          setSelectedPreset('secure');
+          setFuzzReport(runPropertyFuzzingSuite(fuzzBatchSize, {
+            hasCheckedMath: true,
+            hasSignerCheck: true,
+            hasOneAuthority: true,
+            hasRentExempt49B: true,
+          }));
+        }}
       />
     </div>
   );

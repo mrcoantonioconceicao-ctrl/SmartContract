@@ -263,6 +263,12 @@ No Centro de Comando EGC, os engenheiros encontram o botao dedicado **"Criar Iss
    - Executa `createGitHubPullRequest` com validacao previa de branch remota e commit, prevenindo o erro HTTP 422 (Validation Failed: head).
 4. **Geracao do Relatorio PDF Formal:**
    - Compila o relatorio auditavel formal com carimbo criptografico, matriz de invariantes DDD e topologia GraphRAG.
+5. **Rotina Obrigatoria de Limpeza de Estado Pos-PR (egc clean / Auto-Purge):**
+   - **Disparo Automatico Pos-PR:** Executado obrigatoriamente logo apos o sucesso da abertura do Pull Request no GitHub.
+   - **Limpeza de Cache em Memoria:** Descarta variaveis de sessao ativas na memoria (nome do repositorio anterior, branch de origem e tokens temporarios).
+   - **Desvinculo de Contexto Local:** Remove e desvincula os arquivos de estado persistente local (`~/.egc/state` e `.egc/state.json`), alem de expurgar o localStorage no navegador.
+   - **Confirmacao Visual Padronizada:** Emite a mensagem no terminal e na interface: *"Estado limpo com sucesso. EGC pronto para novo alvo."*
+   - **Isolamento Estatico Rigoroso:** Bloqueia qualquer reaproveitamento residual de projetos anteriores (ex: SlipPay / SlipPay2), forçando a reescrita explicita de parametros para o novo repositorio alvo (ex: Plataforma-nexa).
 
 ---
 
@@ -274,6 +280,7 @@ No Centro de Comando EGC, os engenheiros encontram o botao dedicado **"Criar Iss
 | `POST` | `/api/egc/scan` | Dispara a varredura real do repositorio e retorna o relatorio estruturado de achados. |
 | `POST` | `/api/egc/github/issues` | Cria issues reais na API do GitHub para os achados encontrados na varredura. |
 | `POST` | `/api/github/pull-request` | Cria um Pull Request seguro com verificacao previa de branch e politica de merge manual. |
+| `POST` | `/api/egc/clean` | Executa o auto-purge de estado do EGC, desvincula ~/.egc/state e reseta cache em memoria. |
 | `GET` | `/api/soa/catalog` | Catalogo unificado de microservicos e ferramentas do ecossistema EGC. |
 | `POST` | `/api/mcp/execute` | Roteador universal para execucao direta de ferramentas MCP do EGC. |
 
@@ -289,6 +296,11 @@ No Centro de Comando EGC, os engenheiros encontram o botao dedicado **"Criar Iss
 ### Instalacao de Dependencias
 ```bash
 npm install
+```
+
+### Limpeza de Estado Local do EGC (Auto-Purge Manual)
+```bash
+npm run egc:clean
 ```
 
 ### Executar a Suite de Testes MCP e EGC
@@ -309,7 +321,27 @@ npm run build
 
 ---
 
-## 8. Conformidade, Regras da Casa e Autoria
+## 8. Gestao de Dependencias Cargo & Pipeline DevSecOps
+
+Para sincronizar o `Cargo.lock` e garantir que a pipeline de CI execute com validacao estrita (`cargo check --locked` e `cargo-audit`):
+
+```bash
+# 1. Garante que o Cargo.lock esta gerado e atualizado localmente
+cargo generate-lockfile
+
+# 2. Adiciona o Cargo.lock e a pasta .cargo ao git
+git add Cargo.lock .cargo/audit.toml
+
+# 3. Faz o commit da correcao do CI
+git commit -m "fix(ci): adiciona Cargo.lock e ajusta dependencias para passar na pipeline do DevSecOps"
+
+# 4. Envia para o repositorio remoto
+git push origin corrigido/remediacao-c44
+```
+
+---
+
+## 9. Conformidade, Regras da Casa e Autoria
 
 - **Regra C44 (Nao-Destrutiva):** Nenhum arquivo de producao e sobrescrito com stubs ou conteudos vazios. Modificacoes ocorrem exclusivamente atraves de expansao modular e atômica.
 - **Politica de Caracteres Tipograficos:** Proibicao absoluta de travessoes unicode (em-dash e en-dash); utilizacao exclusiva de hifens comuns (`-`).

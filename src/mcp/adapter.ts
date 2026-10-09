@@ -20,6 +20,7 @@ import { createRealGitHubIssues } from '../services/githubIssueService.ts';
 import { executeEgcOneClickFlow, getTargetRepositoryFiles } from '../services/egcCommandCenterService.ts';
 import { extractRepositoryArchitectureContext } from '../services/contextualEngine.ts';
 import { runAnchorLint } from '../lint/anchorLint.ts';
+import { purgeEgcState } from '../services/egcStateManager.ts';
 
 export interface GenerateContractArgs {
   programName?: string;
@@ -211,5 +212,13 @@ export class EgcMcpExecutionAdapter {
   public static async runAnchorLinter(files?: FileToScan[]) {
     const targetFiles = files && files.length > 0 ? files : await getTargetRepositoryFiles();
     return runAnchorLint(targetFiles);
+  }
+
+  /**
+   * 12. EGC State Auto-Purge and Reset (egc clean)
+   * Cleans active in-memory session cache, unlinks ~/.egc/state, and enforces fresh target parameters
+   */
+  public static async cleanEgcState() {
+    return purgeEgcState();
   }
 }

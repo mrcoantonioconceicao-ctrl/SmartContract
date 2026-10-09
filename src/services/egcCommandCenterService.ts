@@ -21,6 +21,12 @@ import {
   buildSurgicalCommitFiles,
   ContextualRepositoryArchitecture
 } from './contextualEngine.ts';
+import {
+  purgeEgcState,
+  setActiveEgcSession,
+  validateTargetIsolation,
+  EGC_CLEAN_CONFIRMATION_MESSAGE
+} from './egcStateManager.ts';
 
 export interface EgcFlowStepStatus {
   step: 'scan' | 'issues' | 'pr' | 'pdf' | 'completed';
@@ -44,6 +50,8 @@ export interface EgcOneClickExecutionResult {
   prResult: GitHubPrResult | null;
   pdfFilename: string;
   errors: string[];
+  statePurged?: boolean;
+  purgeMessage?: string;
 }
 
 /**
@@ -112,6 +120,27 @@ export async function executeEgcOneClickFlow(
 ): Promise<EgcOneClickExecutionResult> {
   const { token, owner, repoName, branchName = 'corrigido/remediacao-c44', onStepProgress } = options;
   const errors: string[] = [];
+
+  // Validacao estatica de isolamento de alvo para prevenir reutilizacao residual de projetos anteriores
+  const isolationCheck = validateTargetIsolation(repoName, owner);
+  if (!isolationCheck.valid) {
+    const isolationError = isolationCheck.error || 'Parametros de repositorio invalidos.';
+    errors.push(isolationError);
+    onStepProgress?.({
+      step: 'scan',
+      status: 'error',
+      message: isolationError,
+    });
+    throw new Error(isolationError);
+  }
+
+  // Registra sessao ativa em memoria
+  setActiveEgcSession({
+    targetRepo: repoName.trim(),
+    targetOwner: owner.trim(),
+    targetBranch: branchName.trim(),
+    temporaryToken: token ? `${token.trim().slice(0, 8)}...` : null,
+  });
 
   // --------------------------------------------------------------------------
   // ETAPA 1: Varredura Real de Arquivos, AST & Contexto (GraphRAG, DDD, SOA)
@@ -237,10 +266,12 @@ export async function executeEgcOneClickFlow(
       });
     } else {
       prResult = prData;
+      // Rotina obrigatoria de auto-purge e limpeza de estado acionada imediatamente apos o sucesso do PR
+      const purgeResult = purgeEgcState();
       onStepProgress?.({
         step: 'pr',
         status: 'success',
-        message: `Pull Request #${prData.prNumber} aberto com sucesso! Status: OPEN (Merge Manual Obrigatorio).`,
+        message: `Pull Request #${prData.prNumber} aberto com sucesso! Status: OPEN. ${purgeResult.message}`,
       });
     }
   } catch (err: any) {
@@ -288,10 +319,14 @@ export async function executeEgcOneClickFlow(
     });
   }
 
+  const isStatePurged = Boolean(prResult?.success);
+
   onStepProgress?.({
     step: 'completed',
     status: 'success',
-    message: 'Fluxo automatizado concluido com sucesso!',
+    message: isStatePurged
+      ? `Fluxo concluido. ${EGC_CLEAN_CONFIRMATION_MESSAGE}`
+      : 'Fluxo automatizado concluido!',
   });
 
   return {
@@ -302,5 +337,7 @@ export async function executeEgcOneClickFlow(
     prResult,
     pdfFilename,
     errors,
+    statePurged: isStatePurged,
+    purgeMessage: isStatePurged ? EGC_CLEAN_CONFIRMATION_MESSAGE : undefined,
   };
 }

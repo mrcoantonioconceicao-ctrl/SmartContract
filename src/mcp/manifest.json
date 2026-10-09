@@ -269,6 +269,15 @@
           }
         }
       }
+    },
+    {
+      "name": "egc_clean_state",
+      "displayName": "EGC State Clean & Auto-Purge",
+      "description": "Executes mandatory state cleanup (egc clean / auto-purge): clears in-memory active session cache, unlinks ~/.egc/state, and resets previous repository context for the next target.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
     }
   ]
 }

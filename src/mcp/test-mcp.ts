@@ -215,6 +215,23 @@ async function runTests() {
   console.log('');
 
   // -------------------------------------------------------------
+  // Test 8: EGC State Clean & Auto-Purge Routine (egc clean)
+  // -------------------------------------------------------------
+  console.log(`${BOLD}[8/8] Testing EGC State Clean & Auto-Purge Routine (egc clean)...${RESET}`);
+  const cleanResult: any = await executeMcpToolDirect('egc_clean_state', {});
+  assert(cleanResult && cleanResult.success === true, 'egc_clean_state tool executes with success');
+  assert(cleanResult.message === 'Estado limpo com sucesso. EGC pronto para novo alvo.', 'Emits exact visual confirmation: Estado limpo com sucesso. EGC pronto para novo alvo.');
+  assert(cleanResult.details && cleanResult.details.memoryCacheCleared === true, 'In-memory active session cache is completely cleared');
+
+  // Verify target isolation
+  const { validateTargetIsolation } = await import('../services/egcStateManager.ts');
+  const emptyTargetValidation = validateTargetIsolation('', 'mrcoantonioconceicao-ctrl');
+  assert(emptyTargetValidation.valid === false, 'Statically blocks empty or residual target');
+  const validTargetValidation = validateTargetIsolation('Plataforma-nexa', 'mrcoantonioconceicao-ctrl');
+  assert(validTargetValidation.valid === true, 'Accepts fresh rewritten target repository (e.g. Plataforma-nexa)');
+  console.log('');
+
+  // -------------------------------------------------------------
   // Summary
   // -------------------------------------------------------------
   console.log(`${BOLD}${GREEN}================================================================${RESET}`);
