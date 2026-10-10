@@ -12,6 +12,7 @@
  */
 
 import { runAnchorLint, AnchorLintResult } from '../lint/anchorLint.ts';
+import { calculateMathematicalSecurityScore } from './continuousLearningEngine.ts';
 
 export type ScanSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'PASS';
 
@@ -404,16 +405,20 @@ export function runRealRepositoryScan(files: FileToScan[]): RealRepoScanResult {
   const lowCount = allFindings.filter(f => f.severity === 'LOW').length;
   const passedCount = allFindings.filter(f => f.severity === 'PASS').length;
 
-  let score = 100 - (criticalCount * 35) - (highCount * 20) - (mediumCount * 10) - (lowCount * 5);
-  score = Math.max(0, Math.min(100, score));
-
-  const status: 'SECURE' | 'WARNING' | 'VULNERABLE' =
-    score >= 85 ? 'SECURE' : score >= 60 ? 'WARNING' : 'VULNERABLE';
-
+  const totalInvariantsChecked = 4;
   const deterministicPdas = !allFindings.some(f => f.category === 'PDA_DERIVATION' && (f.severity === 'CRITICAL' || f.severity === 'HIGH'));
   const rentExemptMemory49B = !allFindings.some(f => f.category === 'RENT_EXEMPT_MEMORY' && (f.severity === 'CRITICAL' || f.severity === 'HIGH'));
   const checkedArithmetic = !allFindings.some(f => f.category === 'ARITHMETIC_OVERFLOW' && (f.severity === 'CRITICAL' || f.severity === 'HIGH'));
   const signerAuthorization = !allFindings.some(f => f.category === 'SIGNER_VALIDATION' && (f.severity === 'CRITICAL' || f.severity === 'HIGH'));
+
+  const invariantsPassed = [deterministicPdas, rentExemptMemory49B, checkedArithmetic, signerAuthorization].filter(Boolean).length;
+
+  // Calculo matematico puro ponderado com pesos de fine-tuning continuo (Zero Mocks)
+  const mathEval = calculateMathematicalSecurityScore(
+    allFindings,
+    totalInvariantsChecked,
+    invariantsPassed
+  );
 
   return {
     scanTimestamp: new Date().toISOString(),
@@ -428,8 +433,8 @@ export function runRealRepositoryScan(files: FileToScan[]): RealRepoScanResult {
       mediumCount,
       lowCount,
       passedCount,
-      securityScore: score,
-      status,
+      securityScore: mathEval.score,
+      status: mathEval.status,
     },
     solanaGuarantees: {
       deterministicPdas,

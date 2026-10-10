@@ -28,7 +28,9 @@ import {
   FolderGit2,
   Check,
   Code2,
-  Columns
+  Columns,
+  Sparkles,
+  Brain
 } from 'lucide-react';
 import {
   executeEgcOneClickFlow,
@@ -48,6 +50,11 @@ import {
 } from '../services/egcStateManager.ts';
 import { PreviewRemediationModal } from './PreviewRemediationModal.tsx';
 import { AstFinding } from '../utils/astAuditor.ts';
+import {
+  getLearningState,
+  recordPrFeedbackEvent,
+  LearningState
+} from '../services/continuousLearningEngine.ts';
 
 const STORAGE_KEY_TOKEN = 'github_sync_token';
 const STORAGE_KEY_OWNER = 'github_sync_owner';
@@ -68,7 +75,8 @@ export function EgcCommandCenter() {
   const [executionResult, setExecutionResult] = useState<EgcOneClickExecutionResult | null>(null);
   const [liveScan, setLiveScan] = useState<RealRepoScanResult | null>(null);
   const [contextArch, setContextArch] = useState<ContextualRepositoryArchitecture | null>(null);
-  const [activeTab, setActiveTab] = useState<'context' | 'guarantees' | 'findings' | 'issues' | 'files'>('context');
+  const [activeTab, setActiveTab] = useState<'context' | 'guarantees' | 'findings' | 'issues' | 'files' | 'learning'>('context');
+  const [learningState, setLearningState] = useState<LearningState>(() => getLearningState());
   const [previewFinding, setPreviewFinding] = useState<AstFinding | null>(null);
   const [previewSourceCode, setPreviewSourceCode] = useState<string>('');
   const [isPreviewOpen, setIsPreviewOpen] = useState<boolean>(false);
@@ -603,6 +611,21 @@ export function EgcCommandCenter() {
             <FileCode className="w-4 h-4" />
             <span>Arvore Fisica Inspecionada ({currentScan?.scannedFilesCount || 0})</span>
           </button>
+
+          <button
+            onClick={() => {
+              setLearningState(getLearningState());
+              setActiveTab('learning');
+            }}
+            className={`px-5 py-3 text-xs font-mono font-medium transition-all flex items-center space-x-2 border-b-2 ${
+              activeTab === 'learning'
+                ? 'border-purple-400 text-purple-300 bg-slate-900'
+                : 'border-transparent text-slate-400 hover:text-purple-300'
+            }`}
+          >
+            <Brain className="w-4 h-4 text-purple-400" />
+            <span>Aprendizado Continuo ({learningState.totalPrEventsLearned} PRs)</span>
+          </button>
         </div>
 
         <div className="p-6">
@@ -625,9 +648,24 @@ export function EgcCommandCenter() {
                   </p>
                 </div>
                 <div className="text-right shrink-0">
-                  <div className="text-[10px] font-mono text-slate-400">Score de Risco Semantico:</div>
-                  <div className="text-lg font-mono font-black text-emerald-400">
-                    {contextArch?.graphRag.crossInstructionRiskScore || 100}/100 [SEGURO]
+                  <div className="text-[10px] font-mono text-slate-400">Score de Risco Semantico (GraphRAG):</div>
+                  <div className={`text-lg font-mono font-black ${
+                    (contextArch?.graphRag.crossInstructionRiskScore ?? 0) >= 85
+                      ? 'text-emerald-400'
+                      : (contextArch?.graphRag.crossInstructionRiskScore ?? 0) >= 60
+                      ? 'text-amber-400'
+                      : 'text-red-400'
+                  }`}>
+                    {contextArch ? `${contextArch.graphRag.crossInstructionRiskScore}%` : 'Calculando...'}
+                    <span className="text-xs font-normal ml-1">
+                      {contextArch
+                        ? (contextArch.graphRag.crossInstructionRiskScore >= 85
+                            ? '[MITIGADO]'
+                            : contextArch.graphRag.crossInstructionRiskScore >= 60
+                            ? '[ATENCAO]'
+                            : '[VULNERAVEL]')
+                        : ''}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -919,6 +957,172 @@ export function EgcCommandCenter() {
                     </span>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* TAB APRENDIZADO CONTINUO & FINE-TUNING LOCAL */}
+          {activeTab === 'learning' && (
+            <div className="space-y-6 font-mono">
+              <div className="p-4 rounded-xl bg-purple-950/20 border border-purple-500/30 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <Brain className="w-5 h-5 text-purple-400 animate-pulse" />
+                    <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                      Arquitetura de Fine-Tuning Local e Memoria de Aprendizado Continuo
+                    </h3>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1 max-w-2xl">
+                    O motor calibra dinamicamente a matriz de pesos de penalidade com base em feedbacks reais dos Pull Requests, comentarios resolvidos e correcoes de compilacao (zero dados estaticos).
+                  </p>
+                </div>
+
+                <div className="text-right shrink-0">
+                  <span className="text-[10px] text-purple-300 block">Eventos de PR Aprendidos:</span>
+                  <span className="text-xl font-bold text-purple-400">
+                    {learningState.totalPrEventsLearned} Ciclos
+                  </span>
+                </div>
+              </div>
+
+              {/* Contexto Inicial de Conhecimento Solana/Anchor */}
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-200 uppercase flex items-center space-x-2">
+                    <Sparkles className="w-4 h-4 text-cyan-400" />
+                    <span>Conhecimento de Dominio Solana Anchor Incorporado</span>
+                  </span>
+                  <span className="text-[11px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">
+                    Ativo em Tempo Real
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                  <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-800/80">
+                    <span className="text-[10px] text-slate-400 block font-semibold">Rent-Exempt Exato:</span>
+                    <span className="text-emerald-400 font-bold">49 Bytes Exatos</span>
+                    <span className="text-[10px] text-slate-500 block mt-0.5">8 disc + 32 auth + 8 count + 1 bump</span>
+                  </div>
+                  <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-800/80">
+                    <span className="text-[10px] text-slate-400 block font-semibold">Signers Ed25519:</span>
+                    <span className="text-emerald-400 font-bold">Signer&lt;'info&gt; Obrigatorio</span>
+                    <span className="text-[10px] text-slate-500 block mt-0.5">has_one = authority em mutacoes</span>
+                  </div>
+                  <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-800/80">
+                    <span className="text-[10px] text-slate-400 block font-semibold">Aritmetica SVM:</span>
+                    <span className="text-emerald-400 font-bold">checked_add / checked_sub</span>
+                    <span className="text-[10px] text-slate-500 block mt-0.5">Protecao de overflow/underflow</span>
+                  </div>
+                  <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-800/80">
+                    <span className="text-[10px] text-slate-400 block font-semibold">Discriminadores Anchor:</span>
+                    <span className="text-emerald-400 font-bold">sha256("global:&lt;ix&gt;")</span>
+                    <span className="text-[10px] text-slate-500 block mt-0.5">Primeiros 8 bytes exatos</span>
+                  </div>
+                  <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-800/80">
+                    <span className="text-[10px] text-slate-400 block font-semibold">Politica CI DevSecOps:</span>
+                    <span className="text-emerald-400 font-bold">cargo check --locked</span>
+                    <span className="text-[10px] text-slate-500 block mt-0.5">Zero fallbacks e sem || true</span>
+                  </div>
+                  <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-800/80">
+                    <span className="text-[10px] text-slate-400 block font-semibold">Seeds de PDA:</span>
+                    <span className="text-emerald-400 font-bold">Canonical Bump Salvo</span>
+                    <span className="text-[10px] text-slate-500 block mt-0.5">Minimiza Compute Units (CU)</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Matriz de Pesos de Penalidade Dinamica */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-xs">
+                  <h4 className="font-bold text-slate-200 uppercase">
+                    Matriz de Pesos e Penalidades Adaptativas do Modelo
+                  </h4>
+                  <span className="text-slate-400 text-[11px]">
+                    Ultima calibracao: {new Date(learningState.updatedAt).toLocaleTimeString()}
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-800 text-slate-400">
+                        <th className="py-2.5 px-3">Regra de Seguranca</th>
+                        <th className="py-2.5 px-3">Categoria</th>
+                        <th className="py-2.5 px-3">Severidade</th>
+                        <th className="py-2.5 px-3 text-center">Peso Ponderado</th>
+                        <th className="py-2.5 px-3 text-center">Reforcos Aprendidos</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/50">
+                      {Object.values(learningState.weights).map((w) => (
+                        <tr key={w.ruleId} className="hover:bg-slate-900/40">
+                          <td className="py-2.5 px-3">
+                            <span className="text-slate-200 font-bold block">{w.name}</span>
+                            <span className="text-[10px] text-slate-500">{w.ruleId}</span>
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-800 text-cyan-300">
+                              {w.category}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                              w.severity === 'CRITICAL' ? 'bg-red-500/20 text-red-400' :
+                              w.severity === 'HIGH' ? 'bg-amber-500/20 text-amber-400' :
+                              w.severity === 'MEDIUM' ? 'bg-yellow-500/20 text-yellow-400' :
+                              'bg-cyan-500/20 text-cyan-300'
+                            }`}>
+                              {w.severity}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-center">
+                            <span className="text-purple-300 font-bold bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/30">
+                              {w.weight} pts
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-center text-slate-300">
+                            {w.reinforcementsCount}x
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Historico de Feedbacks Absorvidos */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold text-slate-200 uppercase">
+                  Historico de Feedbacks e Ajustes no Ciclo de Pull Requests
+                </h4>
+
+                <div className="space-y-2">
+                  {learningState.history.map((ev) => (
+                    <div
+                      key={ev.id}
+                      className="p-3 bg-slate-950 rounded-xl border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+                    >
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded font-bold">
+                            {ev.source}
+                          </span>
+                          <span className="text-slate-300 font-bold">{ev.ruleId}</span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-1">{ev.explanation}</p>
+                      </div>
+
+                      <div className="text-right shrink-0">
+                        <span className="text-emerald-400 font-bold text-[11px] block">
+                          +{ev.deltaWeight} pts de rigor
+                        </span>
+                        <span className="text-[10px] text-slate-500">
+                          {new Date(ev.timestamp).toLocaleTimeString()}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}

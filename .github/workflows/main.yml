@@ -58,7 +58,7 @@ jobs:
           # Verificar a presenca do Cargo.lock; se ausente, gerar automaticamente
           if [ ! -f "Cargo.lock" ]; then
             echo "Aviso: Cargo.lock nao encontrado na raiz. Gerando lockfile automaticamente..."
-            cargo generate-lockfile || cargo metadata --format-version 1 >/dev/null 2>&1 || cargo check || true
+            cargo generate-lockfile
           fi
 
           # Garantir lockfile nos submodulos de programas Anchor caso existam
@@ -68,27 +68,20 @@ jobs:
                 crate_dir=$(dirname "$crate_toml")
                 if [ ! -f "$crate_dir/Cargo.lock" ]; then
                   echo "Gerando lockfile para modulo Anchor em $crate_dir..."
-                  (cd "$crate_dir" && (cargo generate-lockfile || true))
+                  (cd "$crate_dir" && cargo generate-lockfile)
                 fi
               fi
             done
           fi
 
-          # Executar validacao estrita com suporte a --locked ou cargo metadata
+          # Executar validacao estrita com flag --locked
           echo "Executando validacao estrita de dependencias..."
-          if [ -f "Cargo.lock" ]; then
-            echo "Cargo.lock confirmado. Executando checagem estrita..."
-            cargo check --locked --workspace || cargo check --locked || cargo metadata --locked --format-version 1 >/dev/null 2>&1 || cargo check
-          else
-            echo "Executando validacao de metadados sem flag locked..."
-            cargo metadata --format-version 1 >/dev/null 2>&1 || cargo check
-          fi
-          
+          cargo check --locked --workspace
+
           echo "Dependencias e Cargo.lock validados com sucesso para o cargo-audit e build do Anchor."
 
       - name: Run Cargo Audit (DevSecOps Non-Critical Advisory Filter)
-        # Suppress non-critical, informational, and transitive toolchain warnings
-        # that do not impact runtime code execution or fail the pipeline with exit code 1.
+        # Executa auditoria estrita de vulnerabilidades via cargo-audit
         run: |
           cargo audit \
             --ignore RUSTSEC-2023-0071 \
@@ -101,9 +94,8 @@ jobs:
             --ignore RUSTSEC-2022-0090 \
             --ignore RUSTSEC-2024-0437 \
             --ignore-source \
-            --stale \
-            || true
-          echo "Cargo audit step completed: Non-critical security warnings successfully filtered (exit code 0 guaranteed)."
+            --stale
+          echo "Cargo audit step completed: Vulnerabilidades auditadas e conformidade verificada."
 
       - name: Install Solana & Anchor CLI
         run: |
@@ -113,5 +105,5 @@ jobs:
 
       - name: Run Anchor Build & Validation
         run: |
-          anchor build || cargo build
+          anchor build
           echo "Solana Anchor DevSecOps CI verification passed successfully."

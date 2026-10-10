@@ -40,7 +40,10 @@ import {
   Share2,
   Box,
   Compass,
-  Columns
+  Columns,
+  Brain,
+  BarChart3,
+  Percent
 } from 'lucide-react';
 import { 
   PROGRAM_ID, 
@@ -67,6 +70,10 @@ import {
   runPropertyFuzzingSuite, 
   FuzzRunReport 
 } from './services/fuzzingEngine.ts';
+import {
+  runMonteCarloOverflowSimulation,
+  MonteCarloSimulationResult
+} from './services/monteCarloSimulation.ts';
 import { 
   buildContractSecurityGraph, 
   GraphRagAnalysisResult 
@@ -87,6 +94,11 @@ import {
 import { GitHubSyncModal } from './components/GitHubSyncModal.tsx';
 import { EgcCommandCenter } from './components/EgcCommandCenter.tsx';
 import { PreviewRemediationModal } from './components/PreviewRemediationModal.tsx';
+import {
+  recordPrFeedbackEvent,
+  getLearningState,
+  LearningState
+} from './services/continuousLearningEngine.ts';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'egc' | 'ast' | 'fuzzing' | 'graphrag' | 'bpmn' | 'mcp' | 'soa' | 'contract' | 'client'>('egc');
@@ -115,6 +127,20 @@ export default function App() {
   const [fuzzReport, setFuzzReport] = useState<FuzzRunReport>(() => runPropertyFuzzingSuite(10000));
   const [fuzzBatchSize, setFuzzBatchSize] = useState<number>(10000);
 
+  // Monte Carlo Overflow Simulation State
+  const [isMonteCarloRunning, setIsMonteCarloRunning] = useState<boolean>(false);
+  const [monteCarloIterations, setMonteCarloIterations] = useState<number>(5000);
+  const [monteCarloTpsBursts, setMonteCarloTpsBursts] = useState<number>(20000);
+  const [monteCarloResult, setMonteCarloResult] = useState<MonteCarloSimulationResult>(() =>
+    runMonteCarloOverflowSimulation({
+      iterations: 5000,
+      transactionsPerEpoch: 20000,
+      hasCheckedMathProtection: true,
+      concurrencySlotContention: 2.5,
+      meanIncrementAmount: 50000,
+    })
+  );
+
   // MCP Interactive Runner State
   const [selectedMcpTool, setSelectedMcpTool] = useState<string>('audit_anchor_ast');
   const [mcpResult, setMcpResult] = useState<string>('');
@@ -131,6 +157,9 @@ export default function App() {
     { text: 'Derived PDA: 4p5Y7d... (Seed: [b"counter", authority]) with Bump: 254', type: 'ok', time: '13:42:03' },
     { text: 'Rent-Exempt Balance Verified: 1,231,920 Lamports for 49 bytes exact allocation', type: 'ok', time: '13:42:04' },
   ]);
+
+  // Continuous Learning & Fine-Tuning State
+  const [learningFeedbackNotice, setLearningFeedbackNotice] = useState<string | null>(null);
 
   // Copy helper
   const handleCopy = (text: string, id: string) => {
@@ -193,7 +222,7 @@ pub struct UserCounter { pub authority: Pubkey, pub count: u64, pub bump: u8 }`;
     setFuzzReport(runPropertyFuzzingSuite(fuzzBatchSize, flags));
   };
 
-  // Apply AST Auto-Fix
+  // Apply AST Auto-Fix with Model Weight Fine-Tuning & Persistence
   const handleApplyQuickFix = (finding: AstFinding) => {
     if (!finding.fixPatch) return;
     const patchedCode = activeRustCode.replace(finding.fixPatch.search, finding.fixPatch.replace);
@@ -205,6 +234,36 @@ pub struct UserCounter { pub authority: Pubkey, pub count: u64, pub bump: u8 }`;
       hasOneAuthority: true,
       hasRentExempt49B: true,
     }));
+
+    // Registra correcao na memoria persistente de pesos (localStorage + backend)
+    try {
+      const updatedState = recordPrFeedbackEvent({
+        source: 'MANUAL_FEEDBACK',
+        ruleId: finding.ruleId,
+        repository: 'SolanaAnchorWorkspace',
+        deltaWeight: +3,
+        explanation: `Correcao validada pelo desenvolvedor no editor AST: ${finding.title}`,
+      });
+
+      // Tenta sincronizar com o backend
+      fetch('/api/learning/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          source: 'MANUAL_FEEDBACK',
+          ruleId: finding.ruleId,
+          repository: 'SolanaAnchorWorkspace',
+          deltaWeight: +3,
+          explanation: `Correcao validada pelo desenvolvedor no editor AST: ${finding.title}`,
+        }),
+      }).catch(() => {});
+
+      const newWeight = updatedState.weights[finding.ruleId]?.weight || 35;
+      setLearningFeedbackNotice(`Peso da regra [${finding.ruleId}] refinado para ${newWeight} pts (+3 pts de rigor). Memoria persistida com sucesso.`);
+      setTimeout(() => setLearningFeedbackNotice(null), 5000);
+    } catch {
+      // Ignora silenciosamente caso storage esteja bloqueado
+    }
   };
 
   // Trigger Fuzzing Suite
@@ -220,6 +279,23 @@ pub struct UserCounter { pub authority: Pubkey, pub count: u64, pub bump: u8 }`;
       setFuzzReport(runPropertyFuzzingSuite(fuzzBatchSize, flags));
       setIsFuzzingRunning(false);
     }, 350);
+  };
+
+  // Run Monte Carlo Simulation
+  const handleRunMonteCarloSimulation = () => {
+    setIsMonteCarloRunning(true);
+    setTimeout(() => {
+      const hasCheckedMath = activeRustCode.includes('checked_add');
+      const result = runMonteCarloOverflowSimulation({
+        iterations: monteCarloIterations,
+        transactionsPerEpoch: monteCarloTpsBursts,
+        hasCheckedMathProtection: hasCheckedMath,
+        concurrencySlotContention: 3.2,
+        meanIncrementAmount: 50000,
+      });
+      setMonteCarloResult(result);
+      setIsMonteCarloRunning(false);
+    }, 450);
   };
 
   // Execute MCP Tool directly
@@ -457,6 +533,22 @@ pub struct UserCounter { pub authority: Pubkey, pub count: u64, pub bump: u8 }`;
           </div>
         </div>
 
+        {/* Feedback de Aprendizado Continuo e Fine-Tuning */}
+        {learningFeedbackNotice && (
+          <div className="p-3 rounded-xl border border-purple-500/40 bg-purple-950/30 text-purple-200 text-xs font-mono flex items-center justify-between gap-3 shadow-lg animate-in fade-in">
+            <div className="flex items-center gap-2">
+              <Brain className="w-4 h-4 text-purple-400 shrink-0 animate-pulse" />
+              <span>{learningFeedbackNotice}</span>
+            </div>
+            <button
+              onClick={() => setLearningFeedbackNotice(null)}
+              className="text-purple-400 hover:text-purple-200 text-xs px-2 py-0.5"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
         {/* Global Security Preset Selector */}
         <div className="p-3 rounded-xl border border-slate-800 bg-slate-900/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <span className="text-xs text-slate-400 font-mono">Modo de Simulação de Contrato:</span>
@@ -687,6 +779,126 @@ pub struct UserCounter { pub authority: Pubkey, pub count: u64, pub bump: u8 }`;
                   <p className="text-xs text-slate-400">{inv.description}</p>
                 </div>
               ))}
+            </div>
+
+            {/* SECAO: SIMULACAO MONTE CARLO DE OVERFLOW EM ALTA CARGA SVM */}
+            <div className="mt-4 p-5 rounded-xl border border-purple-500/30 bg-slate-950 space-y-5 font-mono">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <BarChart3 className="w-5 h-5 text-purple-400" />
+                    <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                      Simulação Monte Carlo de Overflow no Runtime SVM (Alta Carga de TPS)
+                    </h3>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1 max-w-2xl">
+                    Calcula a probabilidade estatística de transbordamento sob rajadas de transações simultâneas no SVM, avaliando a eficácia real do <code className="text-cyan-300">.checked_add()</code> contra wrap-around acidental.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleRunMonteCarloSimulation}
+                    disabled={isMonteCarloRunning}
+                    className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-medium text-xs rounded-lg flex items-center gap-2 shadow-lg shadow-purple-600/30 transition-all shrink-0"
+                  >
+                    {isMonteCarloRunning ? <RotateCcw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                    <span>{isMonteCarloRunning ? 'Simulando Monte Carlo...' : `Executar ${monteCarloIterations.toLocaleString()} Trajetórias`}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Cards de Métricas Estatísticas do Monte Carlo */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="p-3 rounded-lg border border-slate-800 bg-slate-900/60">
+                  <div className="text-[10px] text-slate-400">Risco Estatístico de Overflow</div>
+                  <div className={`text-2xl font-bold mt-0.5 flex items-baseline gap-1 ${
+                    monteCarloResult.overflowRiskProbabilityPercent === 0 ? 'text-emerald-400' : 'text-rose-400'
+                  }`}>
+                    <span>{monteCarloResult.overflowRiskProbabilityPercent}%</span>
+                    <span className="text-xs font-normal text-slate-400">(IC 95%: [{monteCarloResult.confidenceInterval95[0]}%, {monteCarloResult.confidenceInterval95[1]}%])</span>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-lg border border-slate-800 bg-slate-900/60">
+                  <div className="text-[10px] text-slate-400">Reversões Atômicas (SVM Reverts)</div>
+                  <div className="text-2xl font-bold text-cyan-400 mt-0.5">
+                    {monteCarloResult.gracefulRevertsEnforced.toLocaleString()}
+                    <span className="text-xs font-normal text-slate-400 ml-1">({monteCarloResult.gracefulRevertsRatePercent}%)</span>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-lg border border-slate-800 bg-slate-900/60">
+                  <div className="text-[10px] text-slate-400">Volume Simulado</div>
+                  <div className="text-2xl font-bold text-purple-400 mt-0.5">
+                    {monteCarloResult.transactionsSimulated.toLocaleString()} txs
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-lg border border-slate-800 bg-slate-900/60">
+                  <div className="text-[10px] text-slate-400">Tempo Estimado até u64::MAX</div>
+                  <div className="text-2xl font-bold text-amber-400 mt-0.5">
+                    ~{monteCarloResult.estimatedTimeToOverflowHours}h
+                    <span className="text-xs font-normal text-slate-400 ml-1">@ 2.5k TPS</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Histograma de Distribuição Estocástica */}
+              <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/40 space-y-3">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="font-bold text-slate-300 uppercase">
+                    Distribuição Estocástica das Trajetórias de Estado no SVM
+                  </span>
+                  <span className="text-slate-400 text-[11px]">
+                    Integração: {monteCarloResult.totalSimulations.toLocaleString()} iterações estocásticas
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  {monteCarloResult.distributionBins.map((bin, i) => (
+                    <div key={i} className="space-y-1">
+                      <div className="flex justify-between text-xs text-slate-300">
+                        <span>{bin.binRange}</span>
+                        <span className="text-slate-400">{bin.count.toLocaleString()} trajetórias ({bin.probabilityPercent}%)</span>
+                      </div>
+                      <div className="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            bin.binRange.includes('Overflow')
+                              ? 'bg-rose-500'
+                              : bin.binRange.includes('Fronteira')
+                              ? 'bg-amber-400'
+                              : bin.binRange.includes('Critico')
+                              ? 'bg-cyan-400'
+                              : 'bg-emerald-400'
+                          }`}
+                          style={{ width: `${Math.max(2, Math.min(100, bin.probabilityPercent))}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Veredito do Runtime SVM e Garantia de Integridade */}
+              <div className={`p-4 rounded-xl border text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                monteCarloResult.svmMetrics.stateIntegrityGuaranteed
+                  ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-200'
+                  : 'bg-rose-950/20 border-rose-500/30 text-rose-200'
+              }`}>
+                <div>
+                  <span className="font-bold block text-white uppercase">
+                    Veredito Estatístico do Solana Virtual Machine (SVM):
+                  </span>
+                  <p className="mt-1 text-slate-300">{monteCarloResult.executiveVerdict}</p>
+                </div>
+
+                <div className="text-right shrink-0">
+                  <span className="text-[10px] text-slate-400 block font-mono">Código de Reversão:</span>
+                  <span className="font-mono font-bold text-cyan-300">{monteCarloResult.svmMetrics.arithmeticRevertErrorCode}</span>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -1011,6 +1223,36 @@ pub struct UserCounter { pub authority: Pubkey, pub count: u64, pub bump: u8 }`;
             hasOneAuthority: true,
             hasRentExempt49B: true,
           }));
+
+          if (previewFinding) {
+            try {
+              const updatedState = recordPrFeedbackEvent({
+                source: 'MANUAL_FEEDBACK',
+                ruleId: previewFinding.ruleId,
+                repository: 'SolanaAnchorWorkspace',
+                deltaWeight: +3,
+                explanation: `Correcao validada pelo desenvolvedor via Preview Diff: ${previewFinding.title}`,
+              });
+
+              fetch('/api/learning/feedback', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  source: 'MANUAL_FEEDBACK',
+                  ruleId: previewFinding.ruleId,
+                  repository: 'SolanaAnchorWorkspace',
+                  deltaWeight: +3,
+                  explanation: `Correcao validada pelo desenvolvedor via Preview Diff: ${previewFinding.title}`,
+                }),
+              }).catch(() => {});
+
+              const newWeight = updatedState.weights[previewFinding.ruleId]?.weight || 35;
+              setLearningFeedbackNotice(`Peso da regra [${previewFinding.ruleId}] refinado para ${newWeight} pts (+3 pts de rigor). Memoria persistida com sucesso.`);
+              setTimeout(() => setLearningFeedbackNotice(null), 5000);
+            } catch {
+              // Silencioso se storage falhar
+            }
+          }
         }}
       />
     </div>

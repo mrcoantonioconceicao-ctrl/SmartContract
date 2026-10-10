@@ -3,6 +3,8 @@
  * Analyzes Rust syntax tokens, Anchor declarative macros, account constraints, and memory layouts
  */
 
+import { calculateMathematicalSecurityScore } from '../services/continuousLearningEngine.ts';
+
 export type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO' | 'PASS';
 
 export interface AstFinding {
@@ -260,21 +262,22 @@ export function runAstSecurityAudit(sourceCode: string): AstAuditReport {
     });
   }
 
-  // Calculate score
+  // Calculate score purely mathematically based on AST invariants and fine-tuned weights (Zero Mocks)
   const criticalCount = findings.filter(f => f.severity === 'CRITICAL').length;
   const highCount = findings.filter(f => f.severity === 'HIGH').length;
   const mediumCount = findings.filter(f => f.severity === 'MEDIUM').length;
   const lowCount = findings.filter(f => f.severity === 'LOW').length;
   const passedCount = findings.filter(f => f.severity === 'PASS').length;
 
-  let score = 100 - (criticalCount * 40) - (highCount * 25) - (mediumCount * 15) - (lowCount * 5);
-  score = Math.max(0, Math.min(100, score));
-
-  const status = score >= 85 ? 'SECURE' : score >= 60 ? 'WARNING' : 'VULNERABLE';
+  const mathEval = calculateMathematicalSecurityScore(
+    findings,
+    findings.length,
+    passedCount
+  );
 
   return {
-    score,
-    status,
+    score: mathEval.score,
+    status: mathEval.status,
     totalRulesChecked: findings.length,
     passedCount,
     criticalCount,

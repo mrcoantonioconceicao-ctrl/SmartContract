@@ -16,6 +16,7 @@ import { SOA_CATALOG } from './src/services/soaCatalogService.ts';
 import { runRealRepositoryScan } from './src/services/realRepoScanner.ts';
 import { createRealGitHubIssues } from './src/services/githubIssueService.ts';
 import { purgeEgcState } from './src/services/egcStateManager.ts';
+import { getLearningState, recordPrFeedbackEvent } from './src/services/continuousLearningEngine.ts';
 
 dotenv.config();
 
@@ -205,6 +206,35 @@ app.post('/api/egc/clean', (_req, res) => {
   try {
     const result = purgeEgcState();
     res.json(result);
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 10. Continuous Learning & Model Weights Persistence Endpoints
+app.get('/api/learning/state', (_req, res) => {
+  try {
+    const state = getLearningState();
+    res.json({ success: true, state });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/learning/feedback', (req, res) => {
+  try {
+    const { source, ruleId, repository, deltaWeight, explanation } = req.body;
+    if (!ruleId) {
+      return res.status(400).json({ success: false, error: 'ruleId é obrigatório' });
+    }
+    const updatedState = recordPrFeedbackEvent({
+      source: source || 'MANUAL_FEEDBACK',
+      ruleId,
+      repository: repository || 'LocalDevSecOpsWorkspace',
+      deltaWeight: typeof deltaWeight === 'number' ? deltaWeight : 2,
+      explanation: explanation || 'Correcao de seguranca validada pelo desenvolvedor',
+    });
+    res.json({ success: true, updatedState });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }

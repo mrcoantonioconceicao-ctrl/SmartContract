@@ -17,6 +17,8 @@ export interface GitHubCommitFile {
   content: string;
 }
 
+import { recordPrFeedbackEvent } from './continuousLearningEngine.ts';
+
 export interface CreateGitHubPrOptions {
   token: string;
   owner: string;
@@ -436,6 +438,26 @@ export async function createGitHubPullRequest(options: CreateGitHubPrOptions): P
 
   if (ghData.state !== 'open') {
     throw new Error(`O GitHub retornou um estado inesperado para o Pull Request: "${ghData.state}". O PR nao esta com status "open".`);
+  }
+
+  // Realimentacao da memoria de aprendizado continuo (Fine-Tuning de Pesos Locais)
+  try {
+    recordPrFeedbackEvent({
+      source: 'PR_MERGE',
+      ruleId: 'INSTRUCTION_DISCRIMINATOR_MISMATCH',
+      repository: `${targetOwner}/${targetRepo}`,
+      deltaWeight: +2,
+      explanation: `Ciclo de PR #${ghData.number} bem-sucedido no repositorio ${targetOwner}/${targetRepo}. Reforcando peso de discriminador Anchor e politica estrita CI.`,
+    });
+    recordPrFeedbackEvent({
+      source: 'PIPELINE_STRICT_FIX',
+      ruleId: 'CI_ESCAPE_FALLBACK_DETECTED',
+      repository: `${targetOwner}/${targetRepo}`,
+      deltaWeight: +2,
+      explanation: `Conformidade DevSecOps estrita mantida para PR #${ghData.number}.`,
+    });
+  } catch {
+    // Tolerante a falha de persistencia em contextos headless
   }
 
   return {

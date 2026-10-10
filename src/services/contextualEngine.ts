@@ -558,23 +558,19 @@ jobs:
           echo "=== [DevSecOps] Verificando integridade das dependencias e Cargo.lock ==="
           if [ ! -f "Cargo.lock" ]; then
             echo "Aviso: Cargo.lock nao encontrado na raiz. Gerando lockfile automaticamente..."
-            cargo generate-lockfile || cargo metadata --format-version 1 >/dev/null 2>&1 || cargo check || true
+            cargo generate-lockfile
           fi
           if [ -d "programs" ]; then
             for crate_toml in programs/*/Cargo.toml; do
               if [ -f "$crate_toml" ]; then
                 crate_dir=$(dirname "$crate_toml")
                 if [ ! -f "$crate_dir/Cargo.lock" ]; then
-                  (cd "$crate_dir" && (cargo generate-lockfile || true))
+                  (cd "$crate_dir" && cargo generate-lockfile)
                 fi
               fi
             done
           fi
-          if [ -f "Cargo.lock" ]; then
-            cargo check --locked --workspace || cargo check --locked || cargo metadata --locked --format-version 1 >/dev/null 2>&1 || cargo check
-          else
-            cargo metadata --format-version 1 >/dev/null 2>&1 || cargo check
-          fi
+          cargo check --locked --workspace
           echo "Dependencias e Cargo.lock validados com sucesso para o cargo-audit e build do Anchor."
       - name: Install cargo-audit
         run: |
@@ -592,9 +588,8 @@ jobs:
             --ignore RUSTSEC-2022-0090 \\
             --ignore RUSTSEC-2024-0437 \\
             --ignore-source \\
-            --stale \\
-            || true
-          echo "Cargo audit step completed: Non-critical security warnings successfully filtered (exit code 0 guaranteed)."
+            --stale
+          echo "Cargo audit step completed: Vulnerabilidades auditadas e conformidade verificada."
       - name: Install Solana & Anchor CLI
         run: |
           sh -c "$(curl -sSfL https://release.solana.com/v1.18.26/install)"
@@ -602,7 +597,7 @@ jobs:
           which anchor || cargo install --git https://github.com/coral-xyz/anchor --tag v0.30.1 anchor-cli --locked
       - name: Run Anchor Build & Validation
         run: |
-          anchor build || cargo build
+          anchor build
 `
   });
 
