@@ -459,7 +459,51 @@ npm run egc:cli -- clean
 
 ---
 
-## 11. Conformidade, Regras da Casa e Autoria
+## 11. Sincronizacao com Repositorio Remoto no GitHub (Push & PR)
+
+Caso o repositorio remoto ainda nao tenha recebido os commits locais ou o push automatico tenha sido retido por falta de credenciais remotas no container:
+
+### 11.1 Como Enviar os Commits para o GitHub Manualmente
+```bash
+# 1. Verifique o status da branch corrigido/remediacao-c44
+git status
+
+# 2. Adicione a URL remota do seu repositorio no GitHub (caso nao esteja configurada)
+git remote add origin https://github.com/mrcoantonioconceicao-ctrl/<NOME_DO_REPOSITORIO>.git
+# ou com token PAT autenticado:
+# git remote set-url origin https://<SEU_TOKEN_PAT>@github.com/mrcoantonioconceicao-ctrl/<NOME_DO_REPOSITORIO>.git
+
+# 3. Envie todos os commits e a nova branch para o GitHub
+git push -u origin corrigido/remediacao-c44
+
+# 4. Caso queira atualizar o ramo principal com merge manual auditado:
+git push origin corrigido/remediacao-c44:main
+```
+
+### 11.2 Sincronizacao Automatizada em 1 Clique via IDE
+Voce tambem pode utilizar o botao **"Criar Issues e Abrir PR"** no Centro de Comando EGC da aplicacao web (`http://localhost:3000`):
+1. Acesse o **Centro de Comando EGC** na primeira aba.
+2. Forneca o seu **GitHub Personal Access Token (PAT)** no campo correspondente (ex: `ghp_...`).
+3. O motor executara automaticamente:
+   - A varredura profunda de AST e garantias Solana (Zero Mocks).
+   - O push de todos os arquivos cirurgicos (`lib.rs`, `Cargo.lock`, `audit.toml`, `SECURITY_AUDIT_REPORT.md`).
+   - A criacao de issues detalhadas via GitHub REST API.
+   - A abertura formal de um Pull Request com status **OPEN** e politica de merge manual estrita.
+
+---
+
+## 12. Protocolo do Comite de Seguranca & Arquitetura Web3
+
+O **Comite de Seguranca DevSecOps** estabelece os seguintes invariantes operacionais mandatorios:
+
+1. **Invariante C44 (Nao-Destrutividade):** Nenhuma alteracao em codigo de producao pode remover funcoes ativas sem substituicao equivalente testada.
+2. **Invariante de Isolamento de Alvo:** O comando `egc clean` (`npm run egc:clean`) deve ser executado antes da troca de repositorio alvo para expurgar `~/.egc/state` e limpar caches residuais.
+3. **Invariante de Memoria SVM:** Contas mutaveis de estado em Solana Anchor devem possuir tamanho rent-exempt estritamente delimitado e discriminadores canonicos baseados em SHA-256 (`global:<ix>`).
+4. **Invariante de Autoria:** Todo artefato, manifesto e script permanece registrado sob a autoria de **Marco Antonio Conceicao**.
+
+---
+
+## 13. Conformidade, Regras da Casa e Autoria
 
 - **Regra C44 (Nao-Destrutiva):** Nenhum arquivo de producao e sobrescrito com stubs ou conteudos vazios. Modificacoes ocorrem exclusivamente atraves de expansao modular e atômica.
 - **Politica de Caracteres Tipograficos:** Proibicao absoluta de travessoes unicode (em-dash e en-dash); utilizacao exclusiva de hifens comuns (`-`).
