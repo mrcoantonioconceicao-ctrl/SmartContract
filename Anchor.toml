@@ -7,9 +7,11 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
+anchor_security_program = "CntSandbox111111111111111111111111111111111"
 solana_sandbox_counter = "CntSandbox111111111111111111111111111111111"
 
 [programs.devnet]
+anchor_security_program = "CntSandbox111111111111111111111111111111111"
 solana_sandbox_counter = "CntSandbox111111111111111111111111111111111"
 
 [registry]

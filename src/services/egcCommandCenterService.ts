@@ -73,6 +73,10 @@ export async function getTargetRepositoryFiles(): Promise<FileToScan[]> {
   // Fallback com arquivos reais e fisicos empacotados
   return [
     {
+      path: 'programs/anchor_security_program/src/lib.rs',
+      content: RUST_CONTRACT_SOURCE,
+    },
+    {
       path: 'programs/solana_sandbox_counter/src/lib.rs',
       content: RUST_CONTRACT_SOURCE,
     },
@@ -96,12 +100,20 @@ export const USER_COUNTER_SPACE = 49;`,
     {
       path: 'Cargo.toml',
       content: `[workspace]
-members = ["programs/solana_sandbox_counter"]
+members = [
+    "programs/anchor_security_program",
+    "programs/solana_sandbox_counter"
+]
 resolver = "2"`,
     },
     {
       path: 'Anchor.toml',
       content: `[programs.localnet]
+anchor_security_program = "CntSandbox111111111111111111111111111111111"
+solana_sandbox_counter = "CntSandbox111111111111111111111111111111111"
+
+[programs.devnet]
+anchor_security_program = "CntSandbox111111111111111111111111111111111"
 solana_sandbox_counter = "CntSandbox111111111111111111111111111111111"`,
     },
   ];

@@ -332,6 +332,126 @@ impl UserCounterDomainSpec {
   }
 
   // 4. Manifestos Cargo e Anchor
+  commitFiles.push({
+    path: 'Cargo.toml',
+    content: `[package]
+name = "solana-anchor-security-auditor"
+version = "0.1.0"
+description = "Solana Anchor smart contract for DevSecOps AST & GraphRAG Security Auditor demonstration program"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "anchor_security_program"
+path = "programs/anchor_security_program/src/lib.rs"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+default = []
+
+[dependencies]
+anchor-lang = "0.30.1"
+anchor-spl = "0.30.1"
+solana-program = "~1.18.26"
+thiserror = "1.0.64"
+anyhow = "1.0.95"
+rustls-pemfile = "2.2.0"
+chacha20 = "0.9.1"
+spin = "0.9.8"
+
+[dev-dependencies]
+solana-program-test = "~1.18.26"
+solana-sdk = "~1.18.26"
+
+[package.metadata.audit]
+ignore = [
+  "RUSTSEC-2023-0071",
+  "RUSTSEC-2023-0031",
+  "RUSTSEC-2020-0071",
+  "RUSTSEC-2024-0370",
+  "RUSTSEC-2024-0019",
+  "RUSTSEC-2020-0159",
+  "RUSTSEC-2021-0145",
+  "RUSTSEC-2022-0090",
+  "RUSTSEC-2024-0437"
+]
+
+[profile.release]
+overflow-checks = true
+lto = "fat"
+codegen-units = 1
+opt-level = 3
+
+[workspace]
+members = [
+    "programs/anchor_security_program",
+    "programs/solana_sandbox_counter"
+]
+resolver = "2"
+`
+  });
+
+  commitFiles.push({
+    path: 'programs/anchor_security_program/Cargo.toml',
+    content: `[package]
+name = "anchor-security-program"
+version = "0.1.0"
+description = "Solana Anchor smart contract for DevSecOps AST & GraphRAG Security Auditor demonstration program"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "anchor_security_program"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+default = []
+
+[dependencies]
+anchor-lang = "0.30.1"
+anchor-spl = "0.30.1"
+solana-program = "~1.18.26"
+thiserror = "1.0.64"
+anyhow = "1.0.95"
+rustls-pemfile = "2.2.0"
+chacha20 = "0.9.1"
+spin = "0.9.8"
+
+[dev-dependencies]
+solana-program-test = "~1.18.26"
+solana-sdk = "~1.18.26"
+
+[package.metadata.audit]
+ignore = [
+  "RUSTSEC-2023-0071",
+  "RUSTSEC-2023-0031",
+  "RUSTSEC-2020-0071",
+  "RUSTSEC-2024-0370",
+  "RUSTSEC-2024-0019",
+  "RUSTSEC-2020-0159",
+  "RUSTSEC-2021-0145",
+  "RUSTSEC-2022-0090",
+  "RUSTSEC-2024-0437"
+]
+`
+  });
+
+  commitFiles.push({
+    path: 'programs/anchor_security_program/src/lib.rs',
+    content: rustContract.content || existingFiles.find(f => f.path.includes('programs/anchor_security_program/src/lib.rs'))?.content || ''
+  });
+
+  commitFiles.push({
+    path: 'programs/anchor_security_program/src/domain.rs',
+    content: domainModuleContent
+  });
+
   const cargoToml = existingFiles.find(f => f.path === 'programs/solana_sandbox_counter/Cargo.toml');
   if (cargoToml && cargoToml.content) {
     commitFiles.push({

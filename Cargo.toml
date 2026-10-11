@@ -7,6 +7,7 @@ edition = "2021"
 [lib]
 crate-type = ["cdylib", "lib"]
 name = "anchor_security_program"
+path = "programs/anchor_security_program/src/lib.rs"
 
 [features]
 no-entrypoint = []
@@ -47,3 +48,10 @@ overflow-checks = true
 lto = "fat"
 codegen-units = 1
 opt-level = 3
+
+[workspace]
+members = [
+    "programs/anchor_security_program",
+    "programs/solana_sandbox_counter"
+]
+resolver = "2"

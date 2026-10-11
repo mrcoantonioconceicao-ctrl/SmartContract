@@ -154,6 +154,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "solana-sandbox-counter"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "anyhow",
+ "chacha20",
+ "rustls-pemfile",
+ "solana-program",
+ "solana-program-test",
+ "solana-sdk",
+ "spin",
+ "thiserror",
+]
+
+[[package]]
 name = "anyhow"
 version = "1.0.95"
 source = "registry+https://github.com/rust-lang/crates.io-index"
