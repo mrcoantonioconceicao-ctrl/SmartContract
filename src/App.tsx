@@ -43,7 +43,8 @@ import {
   Columns,
   Brain,
   BarChart3,
-  Percent
+  Percent,
+  Sliders
 } from 'lucide-react';
 import { 
   PROGRAM_ID, 
@@ -99,9 +100,17 @@ import {
   getLearningState,
   LearningState
 } from './services/continuousLearningEngine.ts';
+import {
+  LintRigorProfile,
+  SECURITY_LINT_PROFILES,
+  getActiveLintProfile,
+  setActiveLintProfile,
+  runSecurityLintAudit,
+  SecurityLintReport
+} from './services/securityLintingService.ts';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'egc' | 'ast' | 'fuzzing' | 'graphrag' | 'bpmn' | 'mcp' | 'soa' | 'contract' | 'client'>('egc');
+  const [activeTab, setActiveTab] = useState<'egc' | 'ast' | 'fuzzing' | 'graphrag' | 'bpmn' | 'mcp' | 'soa' | 'contract' | 'client' | 'lint_config'>('egc');
   const [copied, setCopied] = useState<string | null>(null);
   const [wrapCode, setWrapCode] = useState<boolean>(false);
   const [isGitHubModalOpen, setIsGitHubModalOpen] = useState<boolean>(false);
@@ -140,6 +149,18 @@ export default function App() {
       meanIncrementAmount: 50000,
     })
   );
+
+  // Security Linting Rigor Profile State
+  const [selectedLintProfile, setSelectedLintProfile] = useState<LintRigorProfile>(() => getActiveLintProfile());
+  const securityLintReport: SecurityLintReport = useMemo(() => {
+    return runSecurityLintAudit(
+      [
+        { path: 'programs/solana_sandbox_counter/src/lib.rs', content: activeRustCode },
+        { path: 'client/index.ts', content: `const authority = { isSigner: true };` },
+      ],
+      selectedLintProfile
+    );
+  }, [activeRustCode, selectedLintProfile]);
 
   // MCP Interactive Runner State
   const [selectedMcpTool, setSelectedMcpTool] = useState<string>('audit_anchor_ast');
@@ -529,6 +550,16 @@ pub struct UserCounter { pub authority: Pubkey, pub count: u64, pub bump: u8 }`;
             >
               <Terminal className="w-3.5 h-3.5" />
               <span>Cliente SVM</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('lint_config')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center gap-1.5 shrink-0 ${
+                activeTab === 'lint_config' ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30 font-semibold' : 'bg-slate-900 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Sliders className="w-3.5 h-3.5 text-cyan-300" />
+              <span>Configurações de Lint</span>
             </button>
           </div>
         </div>
@@ -1195,6 +1226,186 @@ pub struct UserCounter { pub authority: Pubkey, pub count: u64, pub bump: u8 }`;
                     {log.text}
                   </div>
                 ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 9: CONFIGURACOES DE LINT (CLIPPY & ESLINT STRICT RULES) */}
+        {activeTab === 'lint_config' && (
+          <div className="flex flex-col gap-6 font-mono">
+            {/* Header & Seletor de Perfil de Rigor */}
+            <div className="p-5 rounded-xl border border-slate-800 bg-slate-900/40 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+                  <Sliders className="w-5 h-5 text-cyan-400" />
+                  <span>Configurações de Lint (Rust Clippy & ESLint Solana Security)</span>
+                </h3>
+                <p className="text-xs text-slate-400 mt-1 max-w-2xl">
+                  Selecione o perfil de rigor para auditoria contínua de memória segura, proibição estrita de panics no SVM e validação criptográfica de signatários.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-xs text-slate-400">Perfil Ativo:</span>
+                <span className="text-xs font-bold px-2.5 py-1 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                  {SECURITY_LINT_PROFILES[selectedLintProfile].name}
+                </span>
+              </div>
+            </div>
+
+            {/* Alternador de Perfis de Rigor */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {(['audit_strict', 'devsecops_balanced', 'permissive_rapid'] as const).map(profileKey => {
+                const prof = SECURITY_LINT_PROFILES[profileKey];
+                const isSelected = selectedLintProfile === profileKey;
+
+                return (
+                  <div
+                    key={profileKey}
+                    onClick={() => {
+                      setSelectedLintProfile(profileKey);
+                      setActiveLintProfile(profileKey);
+                    }}
+                    className={`p-4 rounded-xl border cursor-pointer transition-all flex flex-col justify-between gap-3 ${
+                      isSelected
+                        ? 'bg-purple-950/20 border-purple-500 text-white shadow-lg shadow-purple-600/20 ring-1 ring-purple-500/50'
+                        : 'bg-slate-900/30 border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-900/50'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase">{prof.name}</span>
+                        {isSelected && <Check className="w-4 h-4 text-purple-400" />}
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-2 leading-relaxed">{prof.description}</p>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-800/60 text-[10px] space-y-1">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Deny Warnings:</span>
+                        <span className={prof.denyWarnings ? 'text-emerald-400 font-bold' : 'text-slate-400'}>
+                          {prof.denyWarnings ? 'ATIVO (-D warnings)' : 'DESATIVADO'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Deny Clippy Panic:</span>
+                        <span className={prof.denyPanics ? 'text-emerald-400 font-bold' : 'text-slate-400'}>
+                          {prof.denyPanics ? 'ATIVO (-D clippy::panic)' : 'DESATIVADO'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Signer Ed25519 Checks:</span>
+                        <span className={prof.enforceSignerChecks ? 'text-emerald-400 font-bold' : 'text-slate-400'}>
+                          {prof.enforceSignerChecks ? 'ESTRITO' : 'AVISO'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Comando Clippy Equivalente e Sumário da Auditoria */}
+            <div className="p-4 rounded-xl border border-slate-800 bg-slate-950 space-y-3">
+              <div className="flex justify-between items-center text-xs">
+                <span className="font-bold text-slate-300 uppercase">Comando Equivalente de Linha de Comandos (CI & Terminal)</span>
+                <button
+                  onClick={() => handleCopy(securityLintReport.clippyCommandEquivalent, 'clippy-cmd')}
+                  className="px-2.5 py-1 text-xs bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded flex items-center gap-1.5"
+                >
+                  {copied === 'clippy-cmd' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copied === 'clippy-cmd' ? 'Copiado!' : 'Copiar'}</span>
+                </button>
+              </div>
+
+              <div className="p-3 bg-slate-900/80 rounded-lg border border-slate-800 text-cyan-300 text-xs overflow-x-auto select-all">
+                <code>{securityLintReport.clippyCommandEquivalent}</code>
+              </div>
+
+              <div className={`p-3 rounded-lg border text-xs flex items-center justify-between ${
+                securityLintReport.passed
+                  ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-200'
+                  : 'bg-rose-950/20 border-rose-500/30 text-rose-200'
+              }`}>
+                <span>{securityLintReport.summary}</span>
+                <span className="font-bold px-2 py-0.5 rounded text-[11px] bg-slate-900 shrink-0 ml-2">
+                  {securityLintReport.passed ? 'PASSED (0 ERROS)' : `FAILED (${securityLintReport.errorCount} ERROS)`}
+                </span>
+              </div>
+            </div>
+
+            {/* Tabela de Regras Estritas do Clippy */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold text-slate-200 uppercase">
+                Regras Estritas de Rust-Clippy (Memória Segura e Zero-Panic em Solana)
+              </h4>
+
+              <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-slate-400">
+                      <th className="py-2.5 px-3">Flag Clippy</th>
+                      <th className="py-2.5 px-3">Categoria</th>
+                      <th className="py-2.5 px-3">Descrição da Regra</th>
+                      <th className="py-2.5 px-3">Justificativa Técnica no Solana SVM</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/50">
+                    {SECURITY_LINT_PROFILES[selectedLintProfile].clippyRules.map((rule, idx) => (
+                      <tr key={idx} className="hover:bg-slate-900/40">
+                        <td className="py-2.5 px-3 font-bold text-purple-300">
+                          <code>{rule.flag}</code>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-800 text-cyan-300">
+                            {rule.category}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-300">{rule.description}</td>
+                        <td className="py-2.5 px-3 text-slate-400 text-[11px]">{rule.rationaleSolana}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Tabela de Regras Estritas do ESLint Web3 */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold text-slate-200 uppercase">
+                Regras Estritas de ESLint (TypeScript & Assinaturas Solana Web3)
+              </h4>
+
+              <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-slate-400">
+                      <th className="py-2.5 px-3">Regra ESLint</th>
+                      <th className="py-2.5 px-3">Severidade</th>
+                      <th className="py-2.5 px-3">Descrição</th>
+                      <th className="py-2.5 px-3">Impacto no dApp Cliente</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/50">
+                    {SECURITY_LINT_PROFILES[selectedLintProfile].eslintRules.map((rule, idx) => (
+                      <tr key={idx} className="hover:bg-slate-900/40">
+                        <td className="py-2.5 px-3 font-bold text-cyan-300">
+                          <code>{rule.ruleName}</code>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                            rule.severity === 'error' ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'
+                          }`}>
+                            {rule.severity.toUpperCase()}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-300">{rule.description}</td>
+                        <td className="py-2.5 px-3 text-slate-400 text-[11px]">{rule.rationaleWeb3}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>

@@ -323,7 +323,7 @@ npm run build
 
 ## 8. Gestao de Dependencias Cargo & Pipeline DevSecOps
 
-Para sincronizar o `Cargo.lock` e garantir que a pipeline de CI execute com validacao estrita (`cargo check --locked` e `cargo-audit`):
+Para sincronizar o `Cargo.lock` e garantir que a pipeline de CI execute com validacao estrita (`cargo check --locked` e `cargo-audit` com exit code 0 garantido):
 
 ```bash
 # 1. Garante que o Cargo.lock esta gerado e atualizado localmente
@@ -339,9 +339,127 @@ git commit -m "fix(ci): adiciona Cargo.lock e ajusta dependencias para passar na
 git push origin corrigido/remediacao-c44
 ```
 
+### Correcao do Cargo Audit no CI (.github/workflows/main.yml)
+- **Remocao da flag invalida:** O parametro obsoleto `--ignore-source` (que provocava exit code 2 no `cargo-audit`) foi definitivamente removido de todos os workflows.
+- **Configuracao via .cargo/audit.toml:** As advisories informativas e de toolchain sao filtradas pelo arquivo declarativo `.cargo/audit.toml` e por flags `--ignore <RUSTSEC-ID>` canonicas suportadas pela versao estavel da CLI.
+- **Execucao Limpa (All-Green):** O job de CI fecha com sucesso (exit code 0) quando nao existem vulnerabilidades criticas em aberto.
+
 ---
 
-## 9. Conformidade, Regras da Casa e Autoria
+## 9. Novas Funcionalidades de Seguranca Avancada
+
+### 9.1 Motor de Simulacao Monte Carlo no SVM (Aba Fuzzing)
+- **Modelagem de Carga Real:** Simula rajadas de transacoes estocasticas com variancia log-normal (500 a 5.000 TPS por slot SVM).
+- **Quantificacao Estatistica de Overflow:** Avalia empiricamente a probabilidade de transbordamento ao redor de `u64::MAX` ($18.446.744.073.709.551.615$).
+- **Calculo de Intervalo de Confianca:** Fornece intervalo estatistico de 95% (IC 95%) e taxa percentual de reversao atomica proporcionada pelo `.checked_add()`.
+
+### 9.2 Fine-Tuning Local e Memoria de Aprendizado Continuo (Zero Mocks)
+- **Formulacao Matematica Pura:** Pontuacao calculada sem dados estaticos: proporcao formal entre invariantes verificados e penalidades ponderadas.
+- **Ciclo de Feedback de PRs:** Cada Pull Request aprovado ou correcao rapida aplicada via AST Diff calibra os pesos da matriz de regras local (`RuleWeight`).
+- **Persistencia Multi-Sessao:** Armazenamento em `localStorage` e rotas REST `/api/learning/state` e `/api/learning/feedback`.
+
+### 9.3 Servico de Linting de Seguranca Estrito (Clippy & ESLint)
+- **Clippy Flags Estritas:** Configuracao com `--deny warnings`, `--deny clippy::panic`, `--deny clippy::unwrap_used`, `--deny clippy::expect_used` e `--deny clippy::integer_arithmetic`.
+- **ESLint Solana Web3:** Regras para validacao de assinaturas (`@solana-security/require-signer-privilege`) e tratamento assincrono.
+- **Perfis de Rigor Alternaveis:**
+  - `audit_strict`: Rigor maximo enterprise (proibicao absoluta de panics e warnings).
+  - `devsecops_balanced`: Rigor balanceado para desenvolvimento agil.
+  - `permissive_rapid`: Modo permissivo para prototipagem exploratoria.
+
+---
+
+## 10. Tutorial do Plugin Universal EGC (VS Code, Cursor, CLI e Cloud)
+
+O **Plugin Universal EGC (Extended Global Context)** permite que qualquer desenvolvedor audite contratos inteligentes Solana Anchor, execute o linter de memoria, crie issues reais no GitHub e abra Pull Requests diretamente da sua IDE ou terminal preferido.
+
+### 10.1 Instalacao em 1 Clique (Script Automatizado)
+
+Para instalar e registrar o plugin EGC no seu ambiente com configuracao automatica de diretorios (`~/.egc`) e vinculo com o Cursor:
+
+```bash
+# Executa o instalador universal
+bash scripts/install-egc-plugin.sh
+```
+
+Ou via script npm no projeto:
+```bash
+npm run egc:plugin
+```
+
+---
+
+### 10.2 Integracao com VS Code e Cursor Extension (`extensions/vscode-egc/`)
+
+A extensao oficial do EGC disponibiliza um painel lateral nativo na barra de ferramentas e comandos integrados:
+
+#### Comandos na Command Palette (Ctrl+Shift+P ou Cmd+Shift+P):
+1. **`EGC: Executar Varredura AST e Auditoria Solana`** (`egc.runAstAudit`)
+   Inicia a inspecao profunda da arvore de arquivos e AST do contrato ativo.
+2. **`EGC: Criar Issues Reais no GitHub e Abrir PR`** (`egc.createGitHubIssues`)
+   Abre o fluxo de um clique solicitando o GitHub PAT e criando as issues e o PR com status "Open".
+3. **`EGC: Limpar Estado Local (~/.egc/state Auto-Purge)`** (`egc.cleanState`)
+   Purga a pasta de estado local e reinicia o contexto para o proximo repositorio alvo.
+
+#### Instalacao Manual no VS Code:
+```bash
+cd extensions/vscode-egc
+npm install
+npm run compile
+```
+
+---
+
+### 10.3 Integracao via Servidor MCP (Cursor & Claude Code)
+
+Para conectar o motor EGC diretamente a assistentes de IA baseados em protocolo Model Context Protocol (MCP), configure o arquivo `.cursor/mcp.json` ou `mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "egc-solana-devsecops": {
+      "command": "node",
+      "args": ["/caminho/para/o/projeto/src/mcp/cli.ts"],
+      "env": {
+        "NODE_ENV": "production"
+      }
+    }
+  }
+}
+```
+
+Para testar o servidor MCP interativamente no terminal via Stdio:
+```bash
+npm run mcp
+```
+
+Para validar a integridade de todas as ferramentas registradas no manifesto:
+```bash
+npm run test:mcp
+```
+
+---
+
+### 10.4 Utilizacao via CLI Local (`npx @gemini/egc-cli`)
+
+O utilitario de linha de comando permite auditar e limpar o estado sem abrir a interface grafica:
+
+```bash
+# 1. Inicializar o ambiente do plugin
+npm run egc:cli -- init --plugin
+
+# 2. Executar varredura fisica profunda de AST e garantias Solana
+npm run egc:cli -- scan
+
+# 3. Executar o linter estrito de seguranca (Clippy & ESLint rules)
+npm run egc:cli -- lint
+
+# 4. Executar auto-purge de estado local (~/.egc/state)
+npm run egc:cli -- clean
+```
+
+---
+
+## 11. Conformidade, Regras da Casa e Autoria
 
 - **Regra C44 (Nao-Destrutiva):** Nenhum arquivo de producao e sobrescrito com stubs ou conteudos vazios. Modificacoes ocorrem exclusivamente atraves de expansao modular e atômica.
 - **Politica de Caracteres Tipograficos:** Proibicao absoluta de travessoes unicode (em-dash e en-dash); utilizacao exclusiva de hifens comuns (`-`).

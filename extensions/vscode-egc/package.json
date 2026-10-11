@@ -1,0 +1,99 @@
+{
+  "name": "vscode-egc-solana",
+  "displayName": "EGC Command Center - Solana Anchor DevSecOps",
+  "description": "Extensao oficial do EGC (Extended Global Context) para auditoria estatica/dinamica da AST Solana Anchor, linter de memoria, criacao de issues e abertura de PRs com 1 clique.",
+  "version": "1.0.0",
+  "publisher": "marco-antonio-conceicao",
+  "author": {
+    "name": "Marco Antonio Conceicao"
+  },
+  "license": "Apache-2.0",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters",
+    "Other"
+  ],
+  "keywords": [
+    "solana",
+    "anchor",
+    "devsecops",
+    "egc",
+    "mcp",
+    "ast",
+    "security"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished",
+    "onCommand:egc.runAstAudit",
+    "onCommand:egc.createGitHubIssues",
+    "onCommand:egc.cleanState",
+    "onView:egcCommandCenterView"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "egc-solana-explorer",
+          "title": "EGC Solana DevSecOps",
+          "icon": "resources/egc-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "egc-solana-explorer": [
+        {
+          "type": "webview",
+          "id": "egcCommandCenterView",
+          "name": "Centro de Comando EGC",
+          "visibility": "visible"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "egc.runAstAudit",
+        "title": "EGC: Executar Varredura AST e Auditoria Solana",
+        "category": "EGC DevSecOps"
+      },
+      {
+        "command": "egc.createGitHubIssues",
+        "title": "EGC: Criar Issues Reais no GitHub e Abrir PR",
+        "category": "EGC DevSecOps"
+      },
+      {
+        "command": "egc.cleanState",
+        "title": "EGC: Limpar Estado Local (~/.egc/state Auto-Purge)",
+        "category": "EGC DevSecOps"
+      }
+    ],
+    "configuration": {
+      "title": "EGC Solana Anchor DevSecOps",
+      "properties": {
+        "egc.githubToken": {
+          "type": "string",
+          "default": "",
+          "description": "GitHub Personal Access Token (PAT) com permissoes de repositorio."
+        },
+        "egc.autoPurgeOnComplete": {
+          "type": "boolean",
+          "default": true,
+          "description": "Executa auto-purge do estado ~/.egc/state automaticamente apos abertura de PR."
+        },
+        "egc.lintProfile": {
+          "type": "string",
+          "enum": ["audit_strict", "devsecops_balanced", "permissive_rapid"],
+          "default": "audit_strict",
+          "description": "Perfil de rigor do Clippy e ESLint para verificacao de memoria e signatarios."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  }
+}
