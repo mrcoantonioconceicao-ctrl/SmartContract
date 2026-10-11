@@ -503,7 +503,35 @@ O **Comite de Seguranca DevSecOps** estabelece os seguintes invariantes operacio
 
 ---
 
-## 13. Conformidade, Regras da Casa e Autoria
+## 13. Configuracao de Git Hooks para Novos Desenvolvedores
+
+Para assegurar que nenhum commit seja gravado com violacoes de sintaxe Rust, anti-patterns de seguranca Solana ou caracteres invalidos (travessoes unicode), o repositorio inclui um script de configuracao automatica de **pre-commit hooks**:
+
+### 13.1 Como Instalar os Pre-Commit Hooks
+
+Execute o script de automacao na raiz do projeto:
+
+```bash
+# Executa a instalacao dos hooks
+bash scripts/setup-git-hooks.sh
+```
+
+Ou execute via atalho npm:
+```bash
+npm run hooks:setup
+```
+
+### 13.2 O que e Validado Automaticamente Antes de Cada Commit:
+1. **Conformidade Tipografica Estrita:** Proibicao de travessoes unicode (em-dash e en-dash), garantindo que apenas hifens comuns (`-`) sejam admitidos.
+2. **Sintaxe e Integridade Rust:** Executa `cargo check --workspace` se o compilador Rust estiver presente no ambiente de desenvolvimento.
+3. **Auditoria AST e Garantias Solana (Zero Mocks):** Roda a suite `npm run test:mcp` para atestar invariantes on-chain (Rent-Exempt 49B, Signers Ed25519, checked arithmetic e derivacao deterministica de PDA).
+4. **Verificacao de Tipos TypeScript:** Executa `npm run lint` (`tsc --noEmit`) para evitar falhas de tipagem estatica.
+
+Se qualquer uma das verificacoes falhar, o commit e imediatamente bloqueado pelo Git, emitindo a mensagem explicativa da violacao para correcao imediata pelo desenvolvedor.
+
+---
+
+## 14. Conformidade, Regras da Casa e Autoria
 
 - **Regra C44 (Nao-Destrutiva):** Nenhum arquivo de producao e sobrescrito com stubs ou conteudos vazios. Modificacoes ocorrem exclusivamente atraves de expansao modular e atômica.
 - **Politica de Caracteres Tipograficos:** Proibicao absoluta de travessoes unicode (em-dash e en-dash); utilizacao exclusiva de hifens comuns (`-`).

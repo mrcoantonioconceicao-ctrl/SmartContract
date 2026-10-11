@@ -16,7 +16,8 @@
     "mcp": "tsx src/mcp/cli.ts",
     "test:mcp": "tsx src/mcp/test-mcp.ts",
     "egc:cli": "tsx scripts/egc-cli.ts",
-    "egc:plugin": "bash scripts/install-egc-plugin.sh"
+    "egc:plugin": "bash scripts/install-egc-plugin.sh",
+    "hooks:setup": "bash scripts/setup-git-hooks.sh"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
