@@ -368,57 +368,87 @@ git push origin corrigido/remediacao-c44
 
 ---
 
-## 10. Tutorial do Plugin Universal EGC (VS Code, Cursor, CLI e Cloud)
+## 10. Guia Passo a Passo Definitivo para Instalacao e Configuracao do Plugin EGC
 
-O **Plugin Universal EGC (Extended Global Context)** permite que qualquer desenvolvedor audite contratos inteligentes Solana Anchor, execute o linter de memoria, crie issues reais no GitHub e abra Pull Requests diretamente da sua IDE ou terminal preferido.
+O **Plugin Universal EGC (Extended Global Context)** conecta o motor de analise estatica AST, GraphRAG e o **Cacador Autonomo de Contratos** diretamente ao ecossistema de assistentes de IA (Cursor, Claude Code, Windsurf) e ambientes de desenvolvimento por meio do protocolo padrao **Model Context Protocol (MCP)**.
 
-### 10.1 Instalacao em 1 Clique (Script Automatizado)
+### 10.1 Pre-requisitos de Ambiente
+Antes de instalar e ativar o plugin EGC, garanta que os seguintes utilitarios estao instalados no sistema operacional do desenvolvedor:
+1. **Node.js**: Versao 20 LTS ou superior (`node --version`).
+2. **Rust & Cargo**: Toolchain estavel (`rustc --version` e `cargo --version`).
+3. **Solana Toolsuite**: Versao 1.18.26 ou superior (`solana --version`).
+4. **Anchor CLI**: Versao 0.30.1 (`anchor --version`).
+5. **Git**: Git 2.30+ configurado com chave SSH ou Personal Access Token.
 
-Para instalar e registrar o plugin EGC no seu ambiente com configuracao automatica de diretorios (`~/.egc`) e vinculo com o Cursor:
+---
 
+### 10.2 Localizacao e Arquitetura Modular dos Arquivos do Plugin
+A integracao MCP e estruturada de forma modular, limpa e estritamente aderente a **Regra C44 (Nao-Destrutiva)**, localizada em `src/mcp/`:
+
+- **`src/mcp/manifest.json`**: Manifesto formal do plugin MCP registrando ferramentas, esquemas de entrada (JSON Schema), metadados de protocolo (`2024-11-05`), capacidades e limites de isolamento.
+- **`src/mcp/server.ts`**: Nucleo de transporte e instanciacao do servidor MCP baseado no `@modelcontextprotocol/sdk`. Implementa o loop de comunicacao JSON-RPC 2.0 via Stdio.
+- **`src/mcp/adapter.ts`**: Adaptador de execucao que conecta as chamadas das ferramentas MCP aos servicos reais da aplicacao:
+  - `generate_anchor_contract` -> `src/services/contractGenerator.ts`
+  - `audit_rust_ast` -> `src/utils/astAuditor.ts`
+  - `create_github_pr` -> `src/services/githubPrService.ts`
+  - `derive_pda_spec` -> `client/index.ts` (cálculo de 49B e 119B Rent-Exempt)
+  - `record_audit_receipt` -> `src/services/auditReceiptService.ts` (gravacao on-chain)
+  - `run_property_fuzzer` -> `src/services/fuzzingEngine.ts`
+  - `query_graphrag_security` -> `src/services/graphRAGService.ts`
+  - `egc_clean_state` -> `src/mcp/egcClean.ts` (auto-purge de `~/.egc/state`)
+- **`src/mcp/cli.ts`**: Ponto de entrada executavel CLI para despacho rapido via terminal ou daemon.
+- **`src/mcp/test-mcp.ts`**: Bateria automatizada com 43 testes de integracao atestando o funcionamento de cada ferramenta sem mocks.
+
+---
+
+### 10.3 Passo a Passo de Instalacao e Registro
+
+#### Passo 1: Posicionamento no Diretorio do Projeto
+Clone ou acesse a raiz do repositorio:
 ```bash
-# Executa o instalador universal
-bash scripts/install-egc-plugin.sh
+git clone https://github.com/mrcoantonioconceicao-ctrl/<SEU_REPOSITORIO>.git
+cd <SEU_REPOSITORIO>
+npm install --legacy-peer-deps
 ```
 
-Ou via script npm no projeto:
+#### Passo 2: Configuracao das Variaveis de Ambiente e Chaves
+Copie o arquivo de exemplo e configure suas chaves caso deseje automacao completa com GitHub e RPC Solana:
+```bash
+cp .env.example .env
+```
+Parametros recomendados no `.env`:
+```env
+# URL do cluster Solana (devnet, localnet ou mainnet-beta)
+SOLANA_RPC_URL=https://api.devnet.solana.com
+
+# Token de Acesso Pessoal do GitHub (escopos: repo, workflow)
+GITHUB_PAT=ghp_seuTokenAqui
+
+# Ambiente de execucao do servidor MCP
+NODE_ENV=production
+```
+
+#### Passo 3: Execucao do Script de Instalacao Automatica
+Execute o script oficial de inicializacao do plugin:
+```bash
+bash scripts/install-egc-plugin.sh
+```
+Ou através do atalho npm:
 ```bash
 npm run egc:plugin
 ```
+Este script cria o diretorio `~/.egc`, gera o estado inicial seguro e vincula os caminhos absolutos do `manifest.json`.
 
----
+#### Passo 4: Registro no Cursor IDE ou Claude Code
+O repositorio inclui os manifestos pre-configurados `.cursor/mcp.json` e `mcp.json`. Para configurar manualmente no Cursor ou Claude Desktop:
 
-### 10.2 Integracao com VS Code e Cursor Extension (`extensions/vscode-egc/`)
-
-A extensao oficial do EGC disponibiliza um painel lateral nativo na barra de ferramentas e comandos integrados:
-
-#### Comandos na Command Palette (Ctrl+Shift+P ou Cmd+Shift+P):
-1. **`EGC: Executar Varredura AST e Auditoria Solana`** (`egc.runAstAudit`)
-   Inicia a inspecao profunda da arvore de arquivos e AST do contrato ativo.
-2. **`EGC: Criar Issues Reais no GitHub e Abrir PR`** (`egc.createGitHubIssues`)
-   Abre o fluxo de um clique solicitando o GitHub PAT e criando as issues e o PR com status "Open".
-3. **`EGC: Limpar Estado Local (~/.egc/state Auto-Purge)`** (`egc.cleanState`)
-   Purga a pasta de estado local e reinicia o contexto para o proximo repositorio alvo.
-
-#### Instalacao Manual no VS Code:
-```bash
-cd extensions/vscode-egc
-npm install
-npm run compile
-```
-
----
-
-### 10.3 Integracao via Servidor MCP (Cursor & Claude Code)
-
-Para conectar o motor EGC diretamente a assistentes de IA baseados em protocolo Model Context Protocol (MCP), configure o arquivo `.cursor/mcp.json` ou `mcp.json`:
-
+**No Cursor (`.cursor/mcp.json` ou Menu Cursor > Features > MCP):**
 ```json
 {
   "mcpServers": {
     "egc-solana-devsecops": {
-      "command": "node",
-      "args": ["/caminho/para/o/projeto/src/mcp/cli.ts"],
+      "command": "npx",
+      "args": ["tsx", "src/mcp/cli.ts"],
       "env": {
         "NODE_ENV": "production"
       }
@@ -427,15 +457,44 @@ Para conectar o motor EGC diretamente a assistentes de IA baseados em protocolo 
 }
 ```
 
-Para testar o servidor MCP interativamente no terminal via Stdio:
-```bash
-npm run mcp
+**No Claude Desktop (`claude_desktop_config.json`):**
+```json
+{
+  "mcpServers": {
+    "egc-solana-devsecops": {
+      "command": "node",
+      "args": ["/caminho/absoluto/do/projeto/node_modules/tsx/dist/cli.mjs", "src/mcp/cli.ts"]
+    }
+  }
+}
 ```
 
-Para validar a integridade de todas as ferramentas registradas no manifesto:
-```bash
-npm run test:mcp
-```
+---
+
+### 10.4 Validacao e Testes de Comunicacao
+Apos o registro, execute os seguintes passos de teste para homologar a instalacao:
+
+1. **Teste Automatizado da Suite MCP (Zero Mocks):**
+   ```bash
+   npm run test:mcp
+   ```
+   *Resultado esperado:* 43/43 testes aprovados (`ALL TESTS PASSED SUCCESSFULLY`).
+
+2. **Inicie o Servidor MCP Interativamente no Terminal:**
+   ```bash
+   npm run mcp
+   ```
+   *Resultado esperado:* O processo aguarda requisicoes JSON-RPC via Stdio e confirma o binding do manifesto.
+
+3. **Disparo de Rastreio de Riscos e Emissao de Recibos On-Chain:**
+   No Cursor ou Claude Code integrado ao plugin, execute o comando natural:
+   > "Auditar o smart contract ativo usando egc-solana-devsecops e gerar recibo on-chain na Solana Devnet."
+
+---
+
+### 10.5 Garantia da Regra C44 (Nao-Destrutiva)
+- **Instalacao 100% Aditiva e Modular**: O plugin opera em uma camada isolada (`src/mcp/`). Nao substitui, apaga nem sobrescreve classes de producao, contratos Rust existentes ou pipelines de CI.
+- **Isolamento de Estado**: Todos os caches temporarios sao salvos em `~/.egc/state`, podendo ser expurgados a qualquer momento com `npm run egc:clean` sem afetar o codigo-fonte.
 
 ---
 
