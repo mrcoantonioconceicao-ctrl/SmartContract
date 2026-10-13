@@ -17,6 +17,7 @@ export const DEFAULT_PROGRAM_ID = new PublicKey('CntSandbox111111111111111111111
 
 // Exact Rent-Exempt Space allocated by the Anchor Program
 export const USER_COUNTER_SPACE = 49; // 8 discriminator + 32 authority + 8 count + 1 bump
+export const AUDIT_RECEIPT_SPACE = 119; // 8 disc + 32 auditor + 32 target + 32 hash + 8 ts + 4 findings + 1 score + 1 risk + 1 bump
 
 // Anchor Instruction Discriminators (first 8 bytes of SHA256 "global:<instruction_name>")
 export const INSTRUCTION_DISCRIMINATORS = {
@@ -25,6 +26,7 @@ export const INSTRUCTION_DISCRIMINATORS = {
   decrement: Buffer.from([106, 227, 168, 59, 248, 27, 150, 101]),  // global:decrement
   reset: Buffer.from([23, 81, 251, 84, 138, 183, 240, 214]),        // global:reset
   close: Buffer.from([98, 165, 201, 177, 108, 65, 206, 96]),        // global:close
+  recordAuditReceipt: Buffer.from([201, 25, 38, 9, 99, 81, 65, 105]), // global:record_audit_receipt
 };
 
 export interface CounterAccountData {
@@ -188,6 +190,75 @@ export class CounterClient {
         { pubkey: counterPda, isSigner: false, isWritable: true },
         { pubkey: authority, isSigner: true, isWritable: true },
       ],
+      data,
+    });
+  }
+
+  /**
+   * Derives deterministic PDA address for AuditReceipt
+   * Seeds: [b"audit_receipt", target_program.toBuffer(), audit_hash]
+   */
+  public deriveAuditReceiptPda(
+    targetProgram: PublicKey,
+    auditHash: Buffer | Uint8Array
+  ): [PublicKey, number] {
+    const hashBuffer = Buffer.isBuffer(auditHash) ? auditHash : Buffer.from(auditHash);
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from('audit_receipt'), targetProgram.toBuffer(), hashBuffer],
+      this.programId
+    );
+  }
+
+  /**
+   * Constructs RecordAuditReceipt instruction
+   */
+  public createRecordAuditReceiptInstruction(params: {
+    auditor: PublicKey;
+    targetProgram: PublicKey;
+    auditHash: Buffer | Uint8Array;
+    riskLevel: number;
+    findingsCount: number;
+    securityScore: number;
+    counterAuthority?: PublicKey;
+  }): TransactionInstruction {
+    const { auditor, targetProgram, auditHash, riskLevel, findingsCount, securityScore, counterAuthority } = params;
+    const [receiptPda] = this.deriveAuditReceiptPda(targetProgram, auditHash);
+
+    // 8 disc + 32 hash + 1 risk + 4 findings + 1 score = 46 bytes
+    const data = Buffer.alloc(46);
+    INSTRUCTION_DISCRIMINATORS.recordAuditReceipt.copy(data, 0);
+
+    const hashBuffer = Buffer.isBuffer(auditHash) ? auditHash : Buffer.from(auditHash);
+    hashBuffer.copy(data, 8, 0, 32);
+    data.writeUInt8(riskLevel, 40);
+    data.writeUInt32LE(findingsCount, 41);
+    data.writeUInt8(securityScore, 45);
+
+    const keys: Array<{ pubkey: PublicKey; isSigner: boolean; isWritable: boolean }> = [
+      { pubkey: receiptPda, isSigner: false, isWritable: true },
+      { pubkey: targetProgram, isSigner: false, isWritable: false },
+    ];
+
+    if (counterAuthority) {
+      const [counterPda] = this.deriveCounterPda(counterAuthority);
+      keys.push({ pubkey: counterPda, isSigner: false, isWritable: true });
+    } else {
+      keys.push({ pubkey: this.programId, isSigner: false, isWritable: false });
+    }
+
+    keys.push({ pubkey: auditor, isSigner: true, isWritable: true });
+
+    if (counterAuthority) {
+      keys.push({ pubkey: counterAuthority, isSigner: true, isWritable: false });
+    } else {
+      keys.push({ pubkey: this.programId, isSigner: false, isWritable: false });
+    }
+
+    keys.push({ pubkey: SystemProgram.programId, isSigner: false, isWritable: false });
+
+    return new TransactionInstruction({
+      programId: this.programId,
+      keys,
       data,
     });
   }

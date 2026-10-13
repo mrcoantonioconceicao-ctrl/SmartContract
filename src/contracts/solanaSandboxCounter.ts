@@ -205,3 +205,30 @@ export const CONTRACT_SECURITY_SPEC: ContractSecuritySpec = {
     signerVerification: "Signer<'info> mandatory",
   },
 };
+
+export const AUDIT_RECEIPT_SPEC = {
+  instructionName: "record_audit_receipt",
+  pdaDerivation: {
+    seeds: ['b"audit_receipt"', 'target_program.key().as_ref()', 'audit_hash.as_ref()'],
+    bumpStorage: true,
+  },
+  spaceAllocation: {
+    discriminator: 8,
+    auditor: 32,
+    targetProgram: 32,
+    auditHash: 32,
+    timestamp: 8,
+    findingsCount: 4,
+    securityScore: 1,
+    riskLevel: 1,
+    bump: 1,
+    totalBytes: 119,
+    isRentExemptExact: true,
+  },
+  securityGuards: {
+    arithmeticOverflowGuard: "checked_add(1) on auditor cumulative counter",
+    signerVerification: "Signer<'info> mandatory for auditor",
+    scoreRangeGuard: "require!(security_score <= 100)",
+    riskRangeGuard: "require!(risk_level <= 4)",
+  },
+};
