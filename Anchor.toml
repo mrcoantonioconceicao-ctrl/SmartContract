@@ -22,5 +22,5 @@ cluster = "Localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
-test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
-audit = "npm run audit:graphrag"
+test = "npm run test:anchor"
+audit = "npm run test:mcp"
