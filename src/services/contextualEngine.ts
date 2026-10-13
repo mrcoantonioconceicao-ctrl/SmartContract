@@ -248,7 +248,7 @@ export function buildSurgicalCommitFiles(
   context: ContextualRepositoryArchitecture
 ): Array<{ path: string; content: string }> {
   // Declaracao segura de variavel de tempo no escopo da funcao (Regra C44)
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const auditTimestampRfc3339 = new Date().toISOString();
   const commitFiles: Array<{ path: string; content: string }> = [];
 
   // 1. Preservar arquivos de contratos Rust e assegurar adicao cirurgica do domain.rs
@@ -726,7 +726,7 @@ jobs:
     content: `# Relatorio de Engenharia Contextual & Seguranca Web3 - Solana Anchor
 
 - **Autor:** Marco Antonio Conceicao
-- **Data da Auditoria:** ${timestamp}
+- **Data da Auditoria:** ${auditTimestampRfc3339}
 - **Ramo de Origem (Head):** ${targetBranch}
 - **Ramo Alvo (Base):** main
 - **Conformidade Regra C44:** Certificada (Operacao puramente incremental, zero destruicao de codigo existente)

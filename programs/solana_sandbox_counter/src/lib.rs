@@ -60,8 +60,8 @@ pub mod solana_sandbox_counter {
     }
 
     /// Safely closes the PDA account and reclaims rent-exempt lamports back to the authority.
-    pub fn close(ctx: Context<CloseCounter>) -> Result<()> {
-        msg!("UserCounter PDA closed. Rent reclaimed by: {}", ctx.accounts.authority.key());
+    pub fn close(_ctx: Context<CloseCounter>) -> Result<()> {
+        msg!("UserCounter PDA closed. Rent reclaimed by: {}", _ctx.accounts.authority.key());
         Ok(())
     }
 

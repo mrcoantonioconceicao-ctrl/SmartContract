@@ -203,6 +203,9 @@ export class CounterClient {
     auditHash: Buffer | Uint8Array
   ): [PublicKey, number] {
     const hashBuffer = Buffer.isBuffer(auditHash) ? auditHash : Buffer.from(auditHash);
+    if (hashBuffer.length !== 32) {
+      throw new Error(`O auditHash deve ter exatamente 32 bytes (recebido: ${hashBuffer.length} bytes).`);
+    }
     return PublicKey.findProgramAddressSync(
       [Buffer.from('audit_receipt'), targetProgram.toBuffer(), hashBuffer],
       this.programId
@@ -229,6 +232,9 @@ export class CounterClient {
     INSTRUCTION_DISCRIMINATORS.recordAuditReceipt.copy(data, 0);
 
     const hashBuffer = Buffer.isBuffer(auditHash) ? auditHash : Buffer.from(auditHash);
+    if (hashBuffer.length !== 32) {
+      throw new Error(`O auditHash deve ter exatamente 32 bytes (recebido: ${hashBuffer.length} bytes).`);
+    }
     hashBuffer.copy(data, 8, 0, 32);
     data.writeUInt8(riskLevel, 40);
     data.writeUInt32LE(findingsCount, 41);
@@ -240,7 +246,8 @@ export class CounterClient {
     ];
 
     if (counterAuthority) {
-      const [counterPda] = this.deriveCounterPda(counterAuthority);
+      // O PDA do counter na conta Anchor e derivado com a semente [b"counter", auditor.key().as_ref()]
+      const [counterPda] = this.deriveCounterPda(auditor);
       keys.push({ pubkey: counterPda, isSigner: false, isWritable: true });
     } else {
       keys.push({ pubkey: this.programId, isSigner: false, isWritable: false });
