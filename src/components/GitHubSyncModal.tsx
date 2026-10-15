@@ -20,9 +20,12 @@ import {
   User,
   FolderGit2,
   ShieldCheck,
-  AlertTriangle
+  AlertTriangle,
+  ShieldAlert,
+  Terminal
 } from 'lucide-react';
 import { GitHubPipelinePayload } from '../../client/index.ts';
+import { runSecurityLintAudit, SecurityLintFinding } from '../services/securityLintingService.ts';
 
 interface GitHubSyncModalProps {
   isOpen: boolean;
@@ -30,7 +33,7 @@ interface GitHubSyncModalProps {
   pipelinePayload: GitHubPipelinePayload;
 }
 
-type SyncStep = 'idle' | 'forking' | 'branching' | 'committing' | 'creating_pr' | 'success' | 'error';
+type SyncStep = 'idle' | 'linting' | 'forking' | 'branching' | 'committing' | 'creating_pr' | 'success' | 'error';
 
 const STORAGE_KEY_OWNER = 'github_sync_owner';
 const STORAGE_KEY_REPO = 'github_sync_repo';
@@ -56,12 +59,32 @@ export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSync
   const [prNumber, setPrNumber] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [backendMessage, setBackendMessage] = useState<string>('');
+  const [lintFindings, setLintFindings] = useState<SecurityLintFinding[]>([]);
+  const [lintErrorCount, setLintErrorCount] = useState<number>(0);
 
   // Sync state if payload branch changes
   useEffect(() => {
     if (pipelinePayload?.targetBranch) {
       setBranchName(pipelinePayload.targetBranch);
     }
+  }, [pipelinePayload]);
+
+  // Dynamic Pre-Push Validation: executes runSecurityLintAudit (audit_strict) on payload files
+  const [prePushReport, setPrePushReport] = useState(() => {
+    const filesToLint = (pipelinePayload?.commit?.files || []).map(f => ({
+      path: f.path,
+      content: f.content,
+    }));
+    return runSecurityLintAudit(filesToLint, 'audit_strict');
+  });
+
+  useEffect(() => {
+    const filesToLint = (pipelinePayload?.commit?.files || []).map(f => ({
+      path: f.path,
+      content: f.content,
+    }));
+    const report = runSecurityLintAudit(filesToLint, 'audit_strict');
+    setPrePushReport(report);
   }, [pipelinePayload]);
 
   // Persist to localStorage whenever inputs change
@@ -87,11 +110,15 @@ export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSync
   const cleanToken = token.trim();
   const dynamicRepoUrl = `https://github.com/${cleanOwner || 'owner'}/${cleanRepo || 'repo'}`;
 
+  // Validacao de Pre-Push: bloqueia se houver violacoes criticas sob audit_strict
+  const hasSecurityViolations = !prePushReport.passed || prePushReport.errorCount > 0;
+
   const isFormValid = Boolean(
     cleanOwner &&
     cleanRepo &&
     cleanToken &&
-    (cleanToken.startsWith('ghp_') || cleanToken.startsWith('github_pat_'))
+    (cleanToken.startsWith('ghp_') || cleanToken.startsWith('github_pat_')) &&
+    !hasSecurityViolations
   );
 
   const handleStartSync = async () => {
@@ -124,10 +151,46 @@ export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSync
     localStorage.setItem(STORAGE_KEY_REPO, cleanRepo);
     localStorage.setItem(STORAGE_KEY_TOKEN, cleanToken);
 
-    setSyncStep('forking');
     setErrorMessage('');
     setPrUrl('');
     setPrNumber(null);
+    setLintFindings([]);
+    setLintErrorCount(0);
+
+    // 2. Validador de Integridade Pre-Flight (Perfil 'audit_strict'):
+    // Executa analise estrita antes da criacao do PR para garantir que nenhum codigo com
+    // panic!(), .unwrap(), .expect() ou operacoes aritmeticas sem checked_add chegue a branch main.
+    setSyncStep('linting');
+
+    const filesToLint = (pipelinePayload?.commit?.files || []).map(f => ({
+      path: f.path,
+      content: f.content,
+    }));
+
+    const lintReport = runSecurityLintAudit(filesToLint, 'audit_strict');
+
+    // Filtrar especificamente violacoes de panic e falta de checked_add
+    const criticalViolations = lintReport.findings.filter(f => 
+      f.ruleId === 'clippy::panic' || 
+      f.ruleId === 'clippy::unwrap_used' || 
+      f.ruleId === 'clippy::expect_used' || 
+      f.ruleId === 'clippy::integer_arithmetic' ||
+      f.severity === 'error'
+    );
+
+    if (criticalViolations.length > 0) {
+      setLintFindings(criticalViolations);
+      setLintErrorCount(criticalViolations.length);
+      setErrorMessage(
+        `Pre-verificacao de seguranca (audit_strict) FALHOU: ${criticalViolations.length} violacao(oes) critica(s) detetada(s). ` +
+        `E estritamente proibido abrir PR com instrucoes contendo panic!() ou operacoes aritmeticas sem checked_add(). ` +
+        `Corrija os arquivos para assegurar a integridade da branch main.`
+      );
+      setSyncStep('error');
+      return;
+    }
+
+    setSyncStep('forking');
 
     try {
       setSyncStep('committing');
@@ -206,13 +269,70 @@ export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSync
                 </span>
               </div>
 
-              {/* Strict Manual Merge Notice */}
+              {/* Strict Manual Merge Notice & Integrity Shield */}
               <div className="p-3 rounded-lg bg-purple-950/20 border border-purple-800/40 flex items-start gap-2.5 text-slate-300 text-[11px] leading-relaxed">
                 <ShieldCheck className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
                 <div>
                   <strong className="text-purple-300 font-semibold">Política de Merge Manual:</strong>
-                  <div>O sistema apenas cria o commit no fork e abre o Pull Request com status <strong className="text-emerald-400">"Open"</strong>. O merge automático está 100% desativado para garantir a aprovação humana obrigatória no repositório.</div>
+                  <div>O sistema apenas cria o commit e abre o Pull Request com status <strong className="text-emerald-400">"Open"</strong>. Merge automatico 100% desativado.</div>
                 </div>
+              </div>
+
+              {/* Componente de Validacao de Pre-Push (Perfil audit_strict) */}
+              <div className={`p-3.5 rounded-xl border transition-all ${
+                hasSecurityViolations
+                  ? 'bg-rose-950/30 border-rose-800/60 shadow-lg shadow-rose-950/20'
+                  : 'bg-emerald-950/20 border-emerald-800/40'
+              }`}>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    {hasSecurityViolations ? (
+                      <ShieldAlert className="w-4 h-4 text-rose-400" />
+                    ) : (
+                      <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                    )}
+                    <span className="text-xs font-bold text-white">
+                      Validacao de Pre-Push: Perfil audit_strict
+                    </span>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-wide uppercase ${
+                    hasSecurityViolations
+                      ? 'bg-rose-900/60 text-rose-300 border border-rose-700/60'
+                      : 'bg-emerald-900/60 text-emerald-300 border border-emerald-700/60'
+                  }`}>
+                    {hasSecurityViolations ? `${prePushReport.errorCount} VIOLACAO(OES)` : 'APROVADO (ZERO-PANIC)'}
+                  </span>
+                </div>
+
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  {hasSecurityViolations
+                    ? 'Submissao bloqueada. Existem violacoes criticas de seguranca (panic, unwrap ou falta de checked_add) no codigo a ser enviado.'
+                    : 'Codigo verificado com sucesso. Zero panicos na SVM, aritmetica segura com checked_add/checked_sub e privilegios de signatario auditados.'}
+                </p>
+
+                {/* Exibicao dos erros detalhados para o desenvolvedor antes da submissao */}
+                {hasSecurityViolations && (
+                  <div className="mt-3 space-y-2 border-t border-rose-900/40 pt-2.5">
+                    <div className="text-[10px] font-bold text-rose-400 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" />
+                      <span>Erros que bloqueiam a criacao do PR:</span>
+                    </div>
+                    <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1">
+                      {prePushReport.findings.filter(f => f.severity === 'error').map((finding) => (
+                        <div key={finding.id} className="p-2 rounded bg-slate-950/80 border border-rose-800/50 text-[10px] font-mono">
+                          <div className="text-rose-300 font-bold">[{finding.ruleId}] {finding.file}:{finding.line}</div>
+                          <div className="text-slate-300 mt-0.5">{finding.message}</div>
+                          {finding.snippet && (
+                            <code className="text-amber-300 bg-slate-900 px-1 py-0.5 rounded mt-1 block truncate">
+                              {finding.snippet}
+                            </code>
+                          )}
+                          <div className="text-emerald-400 mt-1">Solucao: {finding.remediation}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* 1. GitHub Username / Organization Input */}
@@ -293,8 +413,26 @@ export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSync
             </>
           )}
 
+          {/* Linting Progress Display */}
+          {syncStep === 'linting' && (
+            <div className="py-8 flex flex-col items-center justify-center space-y-4">
+              <ShieldAlert className="w-8 h-8 text-amber-400 animate-pulse" />
+              <div className="text-center">
+                <div className="text-sm font-bold text-white">
+                  A executar Validador de Integridade (Perfil audit_strict)...
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1 font-mono">
+                  Inspecionando AST contra panic!(), .unwrap() e ausencia de checked_add()...
+                </p>
+                <p className="text-[10px] text-amber-400 mt-2 font-mono">
+                  Garantia de que nenhum codigo inseguro atinja o branch main
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Syncing Progress Display */}
-          {(syncStep === 'committing' || syncStep === 'creating_pr') && (
+          {(syncStep === 'committing' || syncStep === 'creating_pr' || syncStep === 'forking') && (
             <div className="py-8 flex flex-col items-center justify-center space-y-4">
               <RotateCcw className="w-8 h-8 text-cyan-400 animate-spin" />
               <div className="text-center">
@@ -377,17 +515,42 @@ export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSync
             <div className="p-4 rounded-xl bg-rose-950/40 border border-rose-800/50 space-y-3">
               <div className="flex items-center gap-2 text-rose-400 font-bold">
                 <AlertCircle className="w-4 h-4" />
-                <span>Erro na Abertura do Pull Request</span>
+                <span>Bloqueio de Seguranca / Falha na Abertura do PR</span>
               </div>
               <p className="text-xs text-rose-300">{errorMessage}</p>
+
+              {/* Detalhes de violacoes de linting estrito se houver */}
+              {lintFindings.length > 0 && (
+                <div className="space-y-2 mt-2">
+                  <div className="text-[11px] font-bold text-rose-400 flex items-center gap-1.5">
+                    <Terminal className="w-3.5 h-3.5" />
+                    <span>Violacoes Detetadas no Perfil audit_strict ({lintErrorCount}):</span>
+                  </div>
+                  <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+                    {lintFindings.map((finding) => (
+                      <div key={finding.id} className="p-2 rounded bg-slate-950 border border-rose-900/60 text-[10px] font-mono">
+                        <div className="text-rose-400 font-bold">[{finding.ruleId}] {finding.file}:{finding.line}</div>
+                        <div className="text-slate-300 mt-0.5">{finding.message}</div>
+                        {finding.snippet && (
+                          <code className="text-amber-300 bg-slate-900 px-1 py-0.5 rounded mt-1 block truncate">
+                            {finding.snippet}
+                          </code>
+                        )}
+                        <div className="text-emerald-400 mt-1">Correcao: {finding.remediation}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="text-[11px] text-slate-400">
-                Verifique se o utilizador (<code className="text-purple-300">{cleanOwner}</code>) e o repositório (<code className="text-cyan-300">{cleanRepo}</code>) estão corretos.
+                Verifique se o codigo esta em conformidade com as regras de zero-panic e operacoes com checked_add().
               </div>
               <button
                 onClick={() => setSyncStep('idle')}
                 className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs transition-colors"
               >
-                Corrigir e Tentar Novamente
+                Revisar e Tentar Novamente
               </button>
             </div>
           )}
@@ -414,10 +577,22 @@ export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSync
                     ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-lg shadow-purple-600/30 active:scale-95 cursor-pointer'
                     : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700/50'
                 }`}
-                title={!isFormValid ? 'Preencha o GitHub PAT obrigatório, utilizador e repositório' : 'Abrir Pull Request real no GitHub'}
+                title={
+                  hasSecurityViolations
+                    ? `Bloqueado por Seguranca: ${prePushReport.errorCount} violacao(oes) no perfil audit_strict`
+                    : !cleanToken
+                    ? 'GitHub Personal Access Token e OBRIGATORIO'
+                    : !cleanOwner || !cleanRepo
+                    ? 'Preencha utilizador e repositorio de destino'
+                    : 'Abrir Pull Request real no GitHub'
+                }
               >
                 <Send className="w-3.5 h-3.5" />
-                <span>Abrir Pull Request (Status Open) em {cleanRepo || 'Repositório'}</span>
+                <span>
+                  {hasSecurityViolations
+                    ? 'Submissao Bloqueada (Violações audit_strict)'
+                    : `Abrir Pull Request (Status Open) em ${cleanRepo || 'Repositório'}`}
+                </span>
               </button>
             </div>
           </div>

@@ -339,8 +339,11 @@ export function runSecurityLintAudit(
           }
         }
 
-        // Regra SAFE_MATH: += ou -= sem checked_
+        // Regra SAFE_MATH: operacao de incremento ou soma sem checked_add
         if (profile.profileId === 'audit_strict' || profile.profileId === 'devsecops_balanced') {
+          const isArithmeticExpr = (trimmed.includes('count +=') || trimmed.includes('count -=') || trimmed.includes('+') || trimmed.includes('-')) &&
+            !trimmed.startsWith('//') && !trimmed.startsWith('/*') && !trimmed.startsWith('*') && !trimmed.includes('checked_') && !trimmed.includes('saturating_');
+          
           if ((trimmed.includes('count +=') || trimmed.includes('count -=')) && !trimmed.includes('checked_')) {
             findings.push({
               id: `CLIPPY-MATH-${file.path}-${lineNum}`,
@@ -349,9 +352,9 @@ export function runSecurityLintAudit(
               file: file.path,
               line: lineNum,
               snippet: trimmed,
-              severity: profile.profileId === 'audit_strict' ? 'error' : 'warning',
-              message: 'Operacao aritmetica direta sem protecao contra overflow/underflow numerico.',
-              remediation: 'Utilize .checked_add(amount).ok_or(SecurityErrorCode::NumericalOverflow)? para seguranca de transbordamento.',
+              severity: 'error',
+              message: 'Operacao aritmetica direta sem checked_add/checked_sub detetada. Risco critico de overflow/underflow numerico na SVM.',
+              remediation: 'Utilize .checked_add(amount).ok_or(SecurityErrorCode::NumericalOverflow)? para protecao estrita de transbordamento.',
             });
           }
         }
