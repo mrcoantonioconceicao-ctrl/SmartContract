@@ -79,6 +79,10 @@ import {
   buildContractSecurityGraph, 
   GraphRagAnalysisResult 
 } from './services/graphRAGService.ts';
+import {
+  buildEnterpriseKnowledgeGraph,
+  EnterpriseGraphRagResult
+} from './services/graphRAGEnterpriseService.ts';
 import { 
   ANCHOR_DEVSECOPS_BPMN_TASKS, 
   generateOmgBpmnXml, 
@@ -95,6 +99,7 @@ import {
 import { GitHubSyncModal } from './components/GitHubSyncModal.tsx';
 import { EgcCommandCenter } from './components/EgcCommandCenter.tsx';
 import { PreviewRemediationModal } from './components/PreviewRemediationModal.tsx';
+import { SecurityAgentChat } from './components/SecurityAgentChat.tsx';
 import {
   recordPrFeedbackEvent,
   getLearningState,
@@ -110,7 +115,7 @@ import {
 } from './services/securityLintingService.ts';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'egc' | 'ast' | 'fuzzing' | 'graphrag' | 'bpmn' | 'mcp' | 'soa' | 'contract' | 'client' | 'lint_config'>('egc');
+  const [activeTab, setActiveTab] = useState<'egc' | 'ast' | 'fuzzing' | 'graphrag' | 'bpmn' | 'mcp' | 'soa' | 'contract' | 'client' | 'lint_config' | 'agent_chat'>('egc');
   const [copied, setCopied] = useState<string | null>(null);
   const [wrapCode, setWrapCode] = useState<boolean>(false);
   const [isGitHubModalOpen, setIsGitHubModalOpen] = useState<boolean>(false);
@@ -126,9 +131,14 @@ export default function App() {
     return runAstSecurityAudit(activeRustCode);
   }, [activeRustCode]);
 
-  // GraphRAG Security Analysis
+  // Legacy GraphRAG Security Analysis (Retrocompatibilidade garantida)
   const graphRagResult: GraphRagAnalysisResult = useMemo(() => {
     return buildContractSecurityGraph(activeRustCode);
+  }, [activeRustCode]);
+
+  // Enterprise GraphRAG Knowledge Graph Engine (Extracao AST, Comunidades & Multi-Hop)
+  const enterpriseGraphResult: EnterpriseGraphRagResult = useMemo(() => {
+    return buildEnterpriseKnowledgeGraph(activeRustCode);
   }, [activeRustCode]);
 
   // Fuzzing Suite State
@@ -435,6 +445,19 @@ pub struct UserCounter { pub authority: Pubkey, pub count: u64, pub bump: u8 }`;
               <span className="text-[11px] font-semibold">Centro EGC</span>
             </button>
 
+            {/* Security Agent Chat Quick Toggle */}
+            <button
+              onClick={() => setActiveTab('agent_chat')}
+              className={`px-2.5 py-1.5 text-xs font-mono rounded-lg flex items-center gap-1.5 transition-all touch-manipulation active:scale-95 ${
+                activeTab === 'agent_chat'
+                  ? 'bg-gradient-to-r from-purple-600 to-cyan-600 text-white font-bold shadow-md shadow-purple-600/30'
+                  : 'bg-purple-950/60 hover:bg-purple-900/60 text-purple-300 border border-purple-800/40'
+              }`}
+            >
+              <Brain className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+              <span className="text-[11px] font-semibold">Agente IA Chat</span>
+            </button>
+
             {/* GitHub Sync Button */}
             <button
               onClick={() => setIsGitHubModalOpen(true)}
@@ -520,6 +543,16 @@ pub struct UserCounter { pub authority: Pubkey, pub count: u64, pub bump: u8 }`;
             >
               <Box className="w-3.5 h-3.5 text-cyan-300" />
               <span>5. Servidor MCP</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('agent_chat')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center gap-1.5 shrink-0 ${
+                activeTab === 'agent_chat' ? 'bg-gradient-to-r from-purple-600 to-cyan-600 text-white shadow-md shadow-purple-600/30 font-semibold' : 'bg-slate-900 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Brain className="w-3.5 h-3.5 text-cyan-300" />
+              <span>Agente de Seguranca IA</span>
             </button>
 
             <button
@@ -681,6 +714,14 @@ pub struct UserCounter { pub authority: Pubkey, pub count: u64, pub bump: u8 }`;
                   <span className="text-emerald-400">Salvo no Estado (OK)</span>
                 </div>
               </div>
+
+              <button
+                onClick={() => setActiveTab('agent_chat')}
+                className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-purple-600/30 to-cyan-600/30 hover:from-purple-600/50 hover:to-cyan-600/50 border border-purple-500/40 text-purple-200 text-xs font-mono flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer"
+              >
+                <Brain className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Perguntar ao Agente IA sobre este AST</span>
+              </button>
             </div>
 
             <div className="lg:col-span-8 rounded-xl border border-slate-800 bg-slate-950 flex flex-col overflow-hidden">
@@ -950,54 +991,127 @@ pub struct UserCounter { pub authority: Pubkey, pub count: u64, pub bump: u8 }`;
 
               <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2 text-xs font-mono">
                 <div className="flex justify-between text-slate-400">
-                  <span>Nós no Grafo:</span>
-                  <span className="text-cyan-400">{graphRagResult.nodes.length} nós</span>
+                  <span>Nós no Grafo (Enterprise):</span>
+                  <span className="text-cyan-400">{enterpriseGraphResult.enterpriseNodes.length} nós tipados</span>
                 </div>
                 <div className="flex justify-between text-slate-400">
-                  <span>Arestas de Dependência:</span>
-                  <span className="text-purple-400">{graphRagResult.edges.length} arestas</span>
+                  <span>Arestas Semânticas:</span>
+                  <span className="text-purple-400">{enterpriseGraphResult.enterpriseEdges.length} arestas</span>
                 </div>
                 <div className="flex justify-between text-slate-400">
-                  <span>Caminhos de Ataque Avaliados:</span>
-                  <span className="text-emerald-400">{graphRagResult.attackPaths.length} caminhos</span>
+                  <span>Comunidades Hierárquicas:</span>
+                  <span className="text-amber-400">{enterpriseGraphResult.communities.length} clusters</span>
+                </div>
+                <div className="flex justify-between text-slate-400">
+                  <span>Caminhos Multi-Hop Mapeados:</span>
+                  <span className="text-emerald-400">{enterpriseGraphResult.multiHopPaths.length} rotas</span>
+                </div>
+                <div className="flex justify-between text-slate-400">
+                  <span>Status Determinístico:</span>
+                  <span className={`font-bold ${enterpriseGraphResult.deterministicAuditStatus === 'CERTIFIED_SECURE' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {enterpriseGraphResult.deterministicAuditStatus}
+                  </span>
                 </div>
               </div>
 
+              {/* Raciocínio Global Enterprise */}
               <div className="p-3.5 rounded-lg bg-purple-950/20 border border-purple-800/40 text-xs text-slate-300 leading-relaxed">
                 <div className="font-semibold text-purple-300 mb-1 flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5" />
-                  Raciocínio GraphRAG & Gemini AI:
+                  Raciocínio GraphRAG Enterprise:
                 </div>
-                {graphRagResult.aiReasoning}
+                {enterpriseGraphResult.globalRepositorySummary}
               </div>
+
+              {/* Sumários por Comunidade (Hierarchical Community Summaries) */}
+              <div className="space-y-2">
+                <div className="text-[11px] font-bold text-slate-300 uppercase tracking-wider font-mono">
+                  Comunidades Semânticas Indexadas:
+                </div>
+                {enterpriseGraphResult.communities.map((comm) => (
+                  <div key={comm.communityId} className="p-2.5 rounded bg-slate-950 border border-slate-800/80 text-[11px]">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="font-bold text-cyan-300">{comm.name}</span>
+                      <span className={`px-1.5 py-0.2 rounded text-[9px] font-mono ${comm.riskIndex === 0 ? 'bg-emerald-950 text-emerald-400' : 'bg-rose-950 text-rose-400'}`}>
+                        {comm.riskIndex === 0 ? 'RISCO: ZERO' : `RISCO: ${comm.riskIndex}`}
+                      </span>
+                    </div>
+                    <p className="text-slate-400 text-[10px] leading-relaxed">{comm.summary}</p>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                onClick={() => setActiveTab('agent_chat')}
+                className="w-full mt-2 py-2 px-3 rounded-lg bg-gradient-to-r from-purple-600/30 to-cyan-600/30 hover:from-purple-600/50 hover:to-cyan-600/50 border border-purple-500/40 text-purple-200 text-xs font-mono flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer"
+              >
+                <Brain className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Explorar Grafo via Agente IA (Chat)</span>
+              </button>
             </div>
 
             <div className="lg:col-span-8 rounded-xl border border-slate-800 bg-slate-950 p-4 space-y-4">
-              <h4 className="text-xs font-mono font-semibold text-slate-300 flex items-center gap-2">
-                <Compass className="w-4 h-4 text-cyan-400" />
-                Caminhos de Exploração & Vetores Mitigados
-              </h4>
+              {/* Raciocínio Multi-Hop Determinístico */}
+              <div>
+                <h4 className="text-xs font-mono font-semibold text-slate-300 flex items-center gap-2 mb-3">
+                  <Compass className="w-4 h-4 text-cyan-400" />
+                  Raciocínio Multi-Hop Determinístico (Caminhos de Transição de Estado)
+                </h4>
+                <div className="space-y-2.5 mb-5">
+                  {enterpriseGraphResult.multiHopPaths.map((path) => (
+                    <div key={path.pathId} className="p-3 rounded-lg border border-slate-800 bg-slate-900/50 space-y-2 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-purple-300 font-mono">Rota: {path.pathId} ({path.hopsCount} saltos)</span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-950 text-emerald-300 border border-emerald-800/60">
+                          {path.riskOutcome}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-mono">
+                        {path.sequence.map((step, sIdx) => (
+                          <React.Fragment key={sIdx}>
+                            <span className="px-2 py-0.5 rounded bg-slate-950 border border-slate-700 text-cyan-300">
+                              {step.nodeId}
+                            </span>
+                            {sIdx < path.sequence.length - 1 && (
+                              <span className="text-slate-500 font-bold">→ [{step.edgeLabel}] →</span>
+                            )}
+                          </React.Fragment>
+                        ))}
+                      </div>
+                      <p className="text-[11px] text-slate-300 leading-relaxed">{path.reasoning}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
 
-              <div className="space-y-3">
-                {graphRagResult.attackPaths.map((ap) => (
-                  <div key={ap.id} className="p-3.5 rounded-xl border border-slate-800 bg-slate-900/40 space-y-2 text-xs">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-slate-200 font-mono">{ap.title}</span>
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
-                        ap.status === 'MITIGATED' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-rose-950 text-rose-400 border border-rose-800'
-                      }`}>
-                        {ap.status}
-                      </span>
+              {/* Caminhos de Ataque Mitigados (Legado com validação retrocompatível) */}
+              <div className="border-t border-slate-800 pt-4">
+                <h4 className="text-xs font-mono font-semibold text-slate-300 flex items-center gap-2 mb-3">
+                  <Share2 className="w-4 h-4 text-amber-400" />
+                  Caminhos de Exploração & Vetores Mitigados (Validação Paralela)
+                </h4>
+
+                <div className="space-y-3">
+                  {graphRagResult.attackPaths.map((ap) => (
+                    <div key={ap.id} className="p-3.5 rounded-xl border border-slate-800 bg-slate-900/40 space-y-2 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-slate-200 font-mono">{ap.title}</span>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
+                          ap.status === 'MITIGATED' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-rose-950 text-rose-400 border border-rose-800'
+                        }`}>
+                          {ap.status}
+                        </span>
+                      </div>
+                      <p className="text-slate-400"><strong className="text-cyan-300">Objetivo do Atacante:</strong> {ap.attackerGoal}</p>
+                      <div className="p-2 rounded bg-slate-950 border border-slate-800 text-[11px] font-mono text-slate-300 space-y-1">
+                        {ap.steps.map((st, i) => <div key={i}>{st}</div>)}
+                      </div>
+                      <div className="text-[11px] text-emerald-300 font-mono">
+                        ✓ Mitigação: {ap.mitigationInContract}
+                      </div>
                     </div>
-                    <p className="text-slate-400"><strong className="text-cyan-300">Objetivo do Atacante:</strong> {ap.attackerGoal}</p>
-                    <div className="p-2 rounded bg-slate-950 border border-slate-800 text-[11px] font-mono text-slate-300 space-y-1">
-                      {ap.steps.map((st, i) => <div key={i}>{st}</div>)}
-                    </div>
-                    <div className="text-[11px] text-emerald-300 font-mono">
-                      ✓ Mitigação: {ap.mitigationInContract}
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -1409,6 +1523,21 @@ pub struct UserCounter { pub authority: Pubkey, pub count: u64, pub bump: u8 }`;
               </div>
             </div>
           </div>
+        )}
+
+        {/* TAB: SECURITY AGENT CHAT (MCP CONTEXT & GRAPHRAG / AST) */}
+        {activeTab === 'agent_chat' && (
+          <SecurityAgentChat
+            activeRustCode={activeRustCode}
+            astReport={astReport}
+            graphRagReport={enterpriseGraphResult}
+            onSelectTab={(tab) => setActiveTab(tab as any)}
+            onApplyQuickFix={handleApplyQuickFix}
+            onRunMcpTool={(toolName) => {
+              setSelectedMcpTool(toolName);
+              setActiveTab('mcp');
+            }}
+          />
         )}
       </main>
 

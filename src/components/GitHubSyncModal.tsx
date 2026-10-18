@@ -22,7 +22,10 @@ import {
   ShieldCheck,
   AlertTriangle,
   ShieldAlert,
-  Terminal
+  Terminal,
+  GitCommit,
+  Check,
+  Settings
 } from 'lucide-react';
 import { GitHubPipelinePayload } from '../../client/index.ts';
 import { runSecurityLintAudit, SecurityLintFinding } from '../services/securityLintingService.ts';
@@ -61,6 +64,53 @@ export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSync
   const [backendMessage, setBackendMessage] = useState<string>('');
   const [lintFindings, setLintFindings] = useState<SecurityLintFinding[]>([]);
   const [lintErrorCount, setLintErrorCount] = useState<number>(0);
+
+  // Git Pre-Commit Hook Management State
+  const [hookInstalled, setHookInstalled] = useState<boolean>(true);
+  const [hookAuditStrictActive, setHookAuditStrictActive] = useState<boolean>(true);
+  const [hookActionLoading, setHookActionLoading] = useState<boolean>(false);
+  const [hookFeedbackMessage, setHookFeedbackMessage] = useState<string>('');
+
+  // Fetch hook status on mount
+  useEffect(() => {
+    let isMounted = true;
+    async function checkHookStatus() {
+      try {
+        const res = await fetch('/api/git-hooks/status');
+        const data = await res.json();
+        if (isMounted && data.success) {
+          setHookInstalled(data.installed);
+          setHookAuditStrictActive(data.isAuditStrictActive);
+        }
+      } catch {
+        // Fallback em caso de offline
+      }
+    }
+    checkHookStatus();
+    return () => { isMounted = false; };
+  }, []);
+
+  const handleToggleHook = async () => {
+    setHookActionLoading(true);
+    setHookFeedbackMessage('');
+    try {
+      const endpoint = hookInstalled ? '/api/git-hooks/uninstall' : '/api/git-hooks/install';
+      const res = await fetch(endpoint, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        setHookInstalled(data.installed);
+        setHookAuditStrictActive(data.isAuditStrictActive);
+        setHookFeedbackMessage(data.message || (data.installed ? 'Pre-commit hook ativado!' : 'Pre-commit hook desativado.'));
+      } else {
+        setHookFeedbackMessage(data.error || 'Falha ao gerenciar hook.');
+      }
+    } catch (err: any) {
+      setHookFeedbackMessage(err.message || 'Erro ao conectar ao servidor.');
+    } finally {
+      setHookActionLoading(false);
+      setTimeout(() => setHookFeedbackMessage(''), 4000);
+    }
+  };
 
   // Sync state if payload branch changes
   useEffect(() => {
@@ -333,6 +383,66 @@ export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSync
                     </div>
                   </div>
                 )}
+              </div>
+
+              {/* Componente: Gerenciador de Git Pre-Commit Hooks (Automacao Local) */}
+              <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className={`p-1.5 rounded-lg ${hookInstalled ? 'bg-emerald-950 border border-emerald-800/60 text-emerald-400' : 'bg-slate-800 text-slate-400'}`}>
+                      <GitCommit className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-white flex items-center gap-2">
+                        <span>Git Pre-Commit Hook Manager</span>
+                        <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
+                          hookInstalled
+                            ? 'bg-emerald-900/60 text-emerald-300 border border-emerald-700/50'
+                            : 'bg-slate-800 text-slate-400'
+                        }`}>
+                          {hookInstalled ? 'HOOK ATIVO (.git/hooks)' : 'DESATIVADO'}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        Executa o <code className="text-purple-300">securityLintingService.ts</code> (audit_strict) antes de cada commit local.
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleToggleHook}
+                    disabled={hookActionLoading}
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition-all ${
+                      hookInstalled
+                        ? 'bg-rose-950/60 hover:bg-rose-900/60 text-rose-300 border border-rose-800/60'
+                        : 'bg-emerald-950/80 hover:bg-emerald-900/80 text-emerald-300 border border-emerald-700/60 shadow-lg shadow-emerald-950/30'
+                    }`}
+                  >
+                    {hookActionLoading ? (
+                      <RotateCcw className="w-3 h-3 animate-spin" />
+                    ) : hookInstalled ? (
+                      <X className="w-3 h-3" />
+                    ) : (
+                      <Check className="w-3 h-3" />
+                    )}
+                    <span>{hookInstalled ? 'Desativar Hook' : 'Instalar Hook'}</span>
+                  </button>
+                </div>
+
+                {hookFeedbackMessage && (
+                  <div className="p-2 rounded bg-slate-900 border border-slate-700 text-[10px] text-cyan-300 font-mono flex items-center gap-1.5">
+                    <Check className="w-3 h-3 text-emerald-400" />
+                    <span>{hookFeedbackMessage}</span>
+                  </div>
+                )}
+
+                <div className="p-2 rounded bg-slate-900/60 border border-slate-800/80 text-[10px] text-slate-400 flex items-start gap-2">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                  <div className="leading-relaxed">
+                    <strong>Garantia de Bloqueio em Stage:</strong> Com o hook instalado, nenhum desenvolvedor consegue executar <code className="text-cyan-300">git commit</code> se houver <code className="text-rose-300">panic!()</code>, <code className="text-rose-300">.unwrap()</code> ou operacoes sem <code className="text-emerald-300">checked_add()</code> no codigo Rust/Solana.
+                  </div>
+                </div>
               </div>
 
               {/* 1. GitHub Username / Organization Input */}

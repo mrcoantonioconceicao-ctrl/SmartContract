@@ -87,11 +87,46 @@ fi
 echo "✔ Auditor AST e suite MCP aprovados."
 
 # 4. Validar tipagem TypeScript
-echo "[4/4] Validando estrita tipagem TypeScript (tsc --noEmit)..."
+echo "[4/5] Validando estrita tipagem TypeScript (tsc --noEmit)..."
 if command -v npm >/dev/null 2>&1; then
   npm run lint || { echo "Falha: Erros de tipagem detetados no TypeScript."; exit 1; }
 fi
 echo "✔ Validacao TypeScript aprovada."
+
+# 5. Executar Linter Estrito de Seguranca (securityLintingService audit_strict: zero-panic e checked_add)
+echo "[5/5] Executando Security Linting Service (perfil audit_strict)..."
+if command -v npm >/dev/null 2>&1; then
+  npx tsx -e "
+    import { runSecurityLintAudit } from './src/services/securityLintingService.ts';
+    import fs from 'fs';
+    import path from 'path';
+
+    const candidatePaths = [
+      'programs/anchor_security_program/src/lib.rs',
+      'programs/solana_sandbox_counter/src/lib.rs',
+      'client/index.ts',
+      'src/contracts/solanaSandboxCounter.ts'
+    ];
+
+    const files = [];
+    for (const p of candidatePaths) {
+      if (fs.existsSync(p)) {
+        files.push({ path: p, content: fs.readFileSync(p, 'utf-8') });
+      }
+    }
+
+    const report = runSecurityLintAudit(files, 'audit_strict');
+    if (!report.passed || report.errorCount > 0) {
+      console.error('ERRO: Violacoes criticas de seguranca detetadas no pre-commit (audit_strict):');
+      for (const f of report.findings.filter(x => x.severity === 'error')) {
+        console.error('  - [' + f.ruleId + '] ' + f.file + ':' + f.line + ' ' + f.message);
+      }
+      process.exit(1);
+    }
+    console.log('✔ Seguranca audit_strict aprovada: zero panics e checked arithmetic confirmado.');
+  " || { echo "Falha: Codigo inseguro bloqueado pelo pre-commit hook antes do stage."; exit 1; }
+fi
+echo "✔ Security Linting Service (audit_strict) aprovado."
 
 echo "----------------------------------------------------------------------"
 echo "✔ [EGC PRE-COMMIT] Todas as verificacoes foram aprovadas com sucesso!"

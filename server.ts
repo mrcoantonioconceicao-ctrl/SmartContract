@@ -11,12 +11,14 @@ import dotenv from 'dotenv';
 import { executeMcpToolDirect, MCP_TOOLS } from './src/mcp/server.ts';
 import { createGitHubPullRequest } from './src/services/githubPrService.ts';
 import { buildContractSecurityGraph } from './src/services/graphRAGService.ts';
+import { buildEnterpriseKnowledgeGraph } from './src/services/graphRAGEnterpriseService.ts';
 import { generateOmgBpmnXml } from './src/services/bpmnWorkflowService.ts';
 import { SOA_CATALOG } from './src/services/soaCatalogService.ts';
 import { runRealRepositoryScan } from './src/services/realRepoScanner.ts';
 import { createRealGitHubIssues } from './src/services/githubIssueService.ts';
 import { purgeEgcState } from './src/services/egcStateManager.ts';
 import { getLearningState, recordPrFeedbackEvent } from './src/services/continuousLearningEngine.ts';
+import { processSecurityAgentChat } from './src/services/securityAgentService.ts';
 
 dotenv.config();
 
@@ -93,12 +95,13 @@ app.post('/api/mcp/execute', async (req, res) => {
   }
 });
 
-// 3. GraphRAG Security Reasoning Endpoint
+// 3. GraphRAG Security Reasoning Endpoint (Enterprise & Standard)
 app.post('/api/graphrag/audit', async (req, res) => {
   try {
     const { sourceCode } = req.body;
     const graphResult = buildContractSecurityGraph(sourceCode || '');
-    res.json({ success: true, graph: graphResult });
+    const enterpriseGraph = buildEnterpriseKnowledgeGraph(sourceCode || '');
+    res.json({ success: true, graph: graphResult, enterpriseGraph });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -237,6 +240,209 @@ app.post('/api/learning/feedback', (req, res) => {
     res.json({ success: true, updatedState });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 11. Git Pre-Commit Hooks Management Endpoints
+// Autoria: Marco Antonio Conceicao | Regra C44
+app.get('/api/git-hooks/status', (_req, res) => {
+  try {
+    const hookPath = path.resolve(__dirname, '.git/hooks/pre-commit');
+    const installed = fs.existsSync(hookPath);
+    let isAuditStrictActive = false;
+
+    if (installed) {
+      const content = fs.readFileSync(hookPath, 'utf-8');
+      isAuditStrictActive = content.includes('securityLintingService') && content.includes('audit_strict');
+    }
+
+    res.json({
+      success: true,
+      installed,
+      isAuditStrictActive,
+      hookPath,
+      message: installed
+        ? 'Git pre-commit hook ativo com verificacao estrita de seguranca.'
+        : 'Git pre-commit hook nao instalado.',
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/git-hooks/install', (_req, res) => {
+  try {
+    const gitDir = path.resolve(__dirname, '.git');
+    if (!fs.existsSync(gitDir)) {
+      fs.mkdirSync(gitDir, { recursive: true });
+    }
+
+    const hooksDir = path.resolve(gitDir, 'hooks');
+    if (!fs.existsSync(hooksDir)) {
+      fs.mkdirSync(hooksDir, { recursive: true });
+    }
+
+    const hookPath = path.resolve(hooksDir, 'pre-commit');
+
+    const hookScript = `#!/bin/bash
+# ==============================================================================
+# Git Pre-Commit Hook: Verificacao de Sintaxe Rust, Linter e Auditor AST EGC
+# Autoria Oficial: Marco Antonio Conceicao
+# Politica: Regra C44 (Nao-Destrutiva) - Zero-Panic & Checked Math
+# ==============================================================================
+
+set -e
+
+echo "----------------------------------------------------------------------"
+echo "🔍 [EGC PRE-COMMIT] Iniciando validacoes de seguranca DevSecOps..."
+echo "----------------------------------------------------------------------"
+
+# 1. Verificar presenca de caracteres invalidos (travessoes unicode)
+echo "[1/5] Verificando conformidade tipografica (zero unicode dashes)..."
+if command -v python3 >/dev/null 2>&1; then
+  python3 -c "
+import os, sys
+violations = []
+for root, dirs, files in os.walk('.'):
+    if any(x in root for x in ['node_modules', '.git', 'dist']):
+        continue
+    for f in files:
+        if f.endswith(('.ts', '.tsx', '.json', '.yml', '.yaml', '.html', '.css', '.toml', '.md', '.sh', '.rs')):
+            path = os.path.join(root, f)
+            try:
+                with open(path, 'r', encoding='utf-8') as fh:
+                    for idx, line in enumerate(fh, 1):
+                        for char in ['\\\\u2014', '\\\\u2013', '\\\\u2012', '\\\\u2015']:
+                            if char in line:
+                                violations.append((path, idx, repr(char)))
+            except Exception:
+                pass
+if violations:
+    print(f'ERRO: Detetados {len(violations)} travessoes unicode proibidos:')
+    for v in violations:
+        print(f'  {v[0]}:{v[1]} - caractere {v[2]}')
+    sys.exit(1)
+" || { echo "Falha no pre-commit: remova os travessoes unicode antes de commitar."; exit 1; }
+fi
+echo "✔ Conformidade tipografica aprovada."
+
+# 2. Verificar sintaxe e estilizacao de contratos Rust
+echo "[2/5] Verificando sintaxe e integridade de codigo Rust..."
+if command -v cargo >/dev/null 2>&1; then
+  if [ -f "Cargo.toml" ]; then
+    echo "Executando cargo check..."
+    cargo check --workspace || { echo "Falha de sintaxe em crates Rust."; exit 1; }
+  fi
+else
+  echo "Cargo nao detetado no ambiente local; pulando verificacao de compilacao nativa."
+fi
+echo "✔ Sintaxe Rust verificada."
+
+# 3. Executar o Auditor AST EGC e Garantias On-Chain Solana
+echo "[3/5] Executando Auditor AST e verificacao de garantias Solana (Zero Mocks)..."
+if command -v npm >/dev/null 2>&1; then
+  npm run test:mcp || { echo "Falha: O auditor AST ou MCP retornou violacao de seguranca."; exit 1; }
+fi
+echo "✔ Auditor AST e suite MCP aprovados."
+
+# 4. Validar tipagem TypeScript
+echo "[4/5] Validando estrita tipagem TypeScript (tsc --noEmit)..."
+if command -v npm >/dev/null 2>&1; then
+  npm run lint || { echo "Falha: Erros de tipagem detetados no TypeScript."; exit 1; }
+fi
+echo "✔ Validacao TypeScript aprovada."
+
+# 5. Executar Linter Estrito de Seguranca (securityLintingService audit_strict)
+echo "[5/5] Executando Security Linting Service (perfil audit_strict)..."
+if command -v npm >/dev/null 2>&1; then
+  npx tsx -e "
+    import { runSecurityLintAudit } from './src/services/securityLintingService.ts';
+    import fs from 'fs';
+
+    const candidatePaths = [
+      'programs/anchor_security_program/src/lib.rs',
+      'programs/solana_sandbox_counter/src/lib.rs',
+      'client/index.ts',
+      'src/contracts/solanaSandboxCounter.ts'
+    ];
+
+    const files = [];
+    for (const p of candidatePaths) {
+      if (fs.existsSync(p)) {
+        files.push({ path: p, content: fs.readFileSync(p, 'utf-8') });
+      }
+    }
+
+    const report = runSecurityLintAudit(files, 'audit_strict');
+    if (!report.passed || report.errorCount > 0) {
+      console.error('ERRO: Violacoes criticas de seguranca detetadas no pre-commit (audit_strict):');
+      for (const f of report.findings.filter(x => x.severity === 'error')) {
+        console.error('  - [' + f.ruleId + '] ' + f.file + ':' + f.line + ' ' + f.message);
+      }
+      process.exit(1);
+    }
+    console.log('✔ Seguranca audit_strict aprovada: zero panics e checked arithmetic confirmado.');
+  " || { echo "Falha: Codigo inseguro bloqueado pelo pre-commit hook antes do stage."; exit 1; }
+fi
+echo "✔ Security Linting Service (audit_strict) aprovado."
+
+echo "----------------------------------------------------------------------"
+echo "✔ [EGC PRE-COMMIT] Todas as verificacoes foram aprovadas com sucesso!"
+echo "----------------------------------------------------------------------"
+exit 0
+`;
+
+    fs.writeFileSync(hookPath, hookScript, { mode: 0o755 });
+    res.json({
+      success: true,
+      installed: true,
+      isAuditStrictActive: true,
+      message: 'Git pre-commit hook instalado e ativado com sucesso em .git/hooks/pre-commit.',
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/git-hooks/uninstall', (_req, res) => {
+  try {
+    const hookPath = path.resolve(__dirname, '.git/hooks/pre-commit');
+    if (fs.existsSync(hookPath)) {
+      fs.unlinkSync(hookPath);
+    }
+    res.json({
+      success: true,
+      installed: false,
+      isAuditStrictActive: false,
+      message: 'Git pre-commit hook desinstalado.',
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 12. Security Agent Chat Endpoint (MCP Server & GraphRAG/AST Context)
+// Autoria: Marco Antonio Conceicao | Regra C44
+app.post('/api/security-agent/chat', async (req, res) => {
+  try {
+    const { message, history, context } = req.body;
+    if (!message || typeof message !== 'string') {
+      return res.status(400).json({ success: false, error: 'Mensagem e obrigatoria.' });
+    }
+
+    const result = await processSecurityAgentChat(
+      message,
+      Array.isArray(history) ? history : [],
+      context || {}
+    );
+
+    res.json({
+      success: true,
+      ...result,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message || 'Erro no agente de seguranca' });
   }
 });
 
