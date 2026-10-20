@@ -10,6 +10,10 @@ jobs:
   anchor-security-audit:
     name: AST, GraphRAG & Security Dependency Audit
     runs-on: ubuntu-latest
+    env:
+      CARGO_BUILD_JOBS: 2
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: 1
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -92,7 +96,7 @@ jobs:
         with:
           targets: x86_64-unknown-linux-gnu
 
-      - name: Cache Cargo Dependencies
+      - name: Cache Cargo Dependencies & Build Artifacts
         uses: actions/cache@v4
         with:
           path: |
@@ -101,7 +105,10 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-v2-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-v2-
+            ${{ runner.os }}-cargo-
 
       - name: Install cargo-audit
         run: |
