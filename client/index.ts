@@ -18,6 +18,8 @@ export const DEFAULT_PROGRAM_ID = new PublicKey('CntSandbox111111111111111111111
 // Exact Rent-Exempt Space allocated by the Anchor Program
 export const USER_COUNTER_SPACE = 49; // 8 discriminator + 32 authority + 8 count + 1 bump
 export const AUDIT_RECEIPT_SPACE = 119; // 8 disc + 32 auditor + 32 target + 32 hash + 8 ts + 4 findings + 1 score + 1 risk + 1 bump
+export const BATCH_AUDIT_SUMMARY_SPACE = 88; // 8 disc + 32 auditor + 32 batch_id + 1 count + 4 findings + 1 score + 1 risk + 8 ts + 1 bump
+export const MAX_AUDIT_BATCH_SIZE = 5;
 
 // Anchor Instruction Discriminators (first 8 bytes of SHA256 "global:<instruction_name>")
 export const INSTRUCTION_DISCRIMINATORS = {
@@ -27,7 +29,16 @@ export const INSTRUCTION_DISCRIMINATORS = {
   reset: Buffer.from([23, 81, 251, 84, 138, 183, 240, 214]),        // global:reset
   close: Buffer.from([98, 165, 201, 177, 108, 65, 206, 96]),        // global:close
   recordAuditReceipt: Buffer.from([201, 25, 38, 9, 99, 81, 65, 105]), // global:record_audit_receipt
+  recordBatchAuditReceipts: Buffer.from([142, 89, 210, 114, 55, 33, 98, 204]), // global:record_batch_audit_receipts
 };
+
+export interface AuditReceiptItemInput {
+  targetProgram: PublicKey;
+  auditHash: Buffer | Uint8Array;
+  riskLevel: number;
+  findingsCount: number;
+  securityScore: number;
+}
 
 export interface CounterAccountData {
   authority: PublicKey;
@@ -247,6 +258,111 @@ export class CounterClient {
 
     if (counterAuthority) {
       // O PDA do counter na conta Anchor e derivado com a semente [b"counter", auditor.key().as_ref()]
+      const [counterPda] = this.deriveCounterPda(auditor);
+      keys.push({ pubkey: counterPda, isSigner: false, isWritable: true });
+    } else {
+      keys.push({ pubkey: this.programId, isSigner: false, isWritable: false });
+    }
+
+    keys.push({ pubkey: auditor, isSigner: true, isWritable: true });
+
+    if (counterAuthority) {
+      keys.push({ pubkey: counterAuthority, isSigner: true, isWritable: false });
+    } else {
+      keys.push({ pubkey: this.programId, isSigner: false, isWritable: false });
+    }
+
+    keys.push({ pubkey: SystemProgram.programId, isSigner: false, isWritable: false });
+
+    return new TransactionInstruction({
+      programId: this.programId,
+      keys,
+      data,
+    });
+  }
+
+  /**
+   * Derives deterministic PDA address for BatchAuditSummary
+   * Seeds: [b"batch_audit", auditor.toBuffer(), batch_id]
+   */
+  public deriveBatchAuditSummaryPda(
+    auditor: PublicKey,
+    batchId: Buffer | Uint8Array
+  ): [PublicKey, number] {
+    const batchBuffer = Buffer.isBuffer(batchId) ? batchId : Buffer.from(batchId);
+    if (batchBuffer.length !== 32) {
+      throw new Error(`O batchId deve ter exatamente 32 bytes (recebido: ${batchBuffer.length} bytes).`);
+    }
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from('batch_audit'), auditor.toBuffer(), batchBuffer],
+      this.programId
+    );
+  }
+
+  /**
+   * Constructs RecordBatchAuditReceipts instruction for up to 5 audit reports
+   */
+  public createRecordBatchAuditReceiptsInstruction(params: {
+    auditor: PublicKey;
+    batchId: Buffer | Uint8Array;
+    items: AuditReceiptItemInput[];
+    counterAuthority?: PublicKey;
+  }): TransactionInstruction {
+    const { auditor, batchId, items, counterAuthority } = params;
+    if (!items || items.length === 0) {
+      throw new Error('O lote de auditoria nao pode estar vazio.');
+    }
+    if (items.length > MAX_AUDIT_BATCH_SIZE) {
+      throw new Error(`O lote nao pode exceder o limite de ${MAX_AUDIT_BATCH_SIZE} itens (recebido: ${items.length}).`);
+    }
+
+    const batchBuffer = Buffer.isBuffer(batchId) ? batchId : Buffer.from(batchId);
+    if (batchBuffer.length !== 32) {
+      throw new Error(`O batchId deve ter exatamente 32 bytes (recebido: ${batchBuffer.length} bytes).`);
+    }
+
+    const [batchPda] = this.deriveBatchAuditSummaryPda(auditor, batchBuffer);
+
+    // Serialization layout:
+    // 8 bytes discriminator
+    // 32 bytes batchId
+    // 4 bytes items length (Vec prefix)
+    // each item: 32 bytes targetProgram + 32 bytes auditHash + 1 byte risk + 4 bytes findings + 1 byte score = 70 bytes
+    const itemSize = 70;
+    const totalDataSize = 8 + 32 + 4 + items.length * itemSize;
+    const data = Buffer.alloc(totalDataSize);
+
+    INSTRUCTION_DISCRIMINATORS.recordBatchAuditReceipts.copy(data, 0);
+    batchBuffer.copy(data, 8, 0, 32);
+    data.writeUInt32LE(items.length, 40);
+
+    let offset = 44;
+    for (const item of items) {
+      item.targetProgram.toBuffer().copy(data, offset, 0, 32);
+      offset += 32;
+
+      const hashBuf = Buffer.isBuffer(item.auditHash) ? item.auditHash : Buffer.from(item.auditHash);
+      if (hashBuf.length !== 32) {
+        throw new Error('Cada auditHash deve ter exatamente 32 bytes.');
+      }
+      hashBuf.copy(data, offset, 0, 32);
+      offset += 32;
+
+      data.writeUInt8(item.riskLevel, offset);
+      offset += 1;
+
+      data.writeUInt32LE(item.findingsCount, offset);
+      offset += 4;
+
+      data.writeUInt8(item.securityScore, offset);
+      offset += 1;
+    }
+
+    const keys: Array<{ pubkey: PublicKey; isSigner: boolean; isWritable: boolean }> = [
+      { pubkey: batchPda, isSigner: false, isWritable: true },
+    ];
+
+    if (counterAuthority) {
       const [counterPda] = this.deriveCounterPda(auditor);
       keys.push({ pubkey: counterPda, isSigner: false, isWritable: true });
     } else {

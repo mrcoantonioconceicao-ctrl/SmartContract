@@ -20,10 +20,16 @@ import {
   DEFAULT_PROGRAM_ID,
   USER_COUNTER_SPACE,
   AUDIT_RECEIPT_SPACE,
+  BATCH_AUDIT_SUMMARY_SPACE,
+  MAX_AUDIT_BATCH_SIZE,
   INSTRUCTION_DISCRIMINATORS,
 } from '../client/index.ts';
 import { AUDIT_RECEIPT_SPEC, CONTRACT_SECURITY_SPEC } from '../src/contracts/solanaSandboxCounter.ts';
-import { recordAuditReceiptOnChain, normalizeAuditHash } from '../src/services/auditReceiptService.ts';
+import {
+  recordAuditReceiptOnChain,
+  recordBatchAuditReceiptsOnChain,
+  normalizeAuditHash,
+} from '../src/services/auditReceiptService.ts';
 
 // Cores ANSI para formatacao visual de alta fidelidade
 const GREEN = '\x1b[32m';

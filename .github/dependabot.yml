@@ -7,7 +7,7 @@
 
 version: 2
 updates:
-  # 1. Monitoramento continuo de dependencias Node.js e TypeScript (package.json)
+  # 1. Monitoramento continuo de dependencias Node.js e TypeScript no diretorio raiz
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
@@ -15,16 +15,11 @@ updates:
       day: "monday"
       time: "06:00"
     open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-      - "javascript"
-      - "typescript"
-      - "devsecops"
     commit-message:
       prefix: "chore(deps-npm)"
       include: "scope"
 
-  # 2. Monitoramento de dependencias Rust na raiz do Virtual Workspace (Cargo.toml)
+  # 2. Monitoramento de dependencias Rust na raiz do Virtual Workspace
   - package-ecosystem: "cargo"
     directory: "/"
     schedule:
@@ -32,16 +27,11 @@ updates:
       day: "monday"
       time: "06:00"
     open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-      - "rust"
-      - "cargo"
-      - "devsecops"
     commit-message:
       prefix: "chore(deps-cargo)"
       include: "scope"
 
-  # 3. Monitoramento do programa Anchor Security Program (programs/anchor_security_program)
+  # 3. Monitoramento estrito do programa Anchor Security Program na subpasta /programs
   - package-ecosystem: "cargo"
     directory: "/programs/anchor_security_program"
     schedule:
@@ -49,16 +39,11 @@ updates:
       day: "monday"
       time: "06:00"
     open-pull-requests-limit: 5
-    labels:
-      - "dependencies"
-      - "rust"
-      - "anchor"
-      - "svm"
     commit-message:
       prefix: "chore(deps-anchor)"
       include: "scope"
 
-  # 4. Monitoramento do programa Solana Sandbox Counter (programs/solana_sandbox_counter)
+  # 4. Monitoramento estrito do programa Solana Sandbox Counter na subpasta /programs
   - package-ecosystem: "cargo"
     directory: "/programs/solana_sandbox_counter"
     schedule:
@@ -66,11 +51,6 @@ updates:
       day: "monday"
       time: "06:00"
     open-pull-requests-limit: 5
-    labels:
-      - "dependencies"
-      - "rust"
-      - "anchor"
-      - "svm"
     commit-message:
       prefix: "chore(deps-anchor)"
       include: "scope"

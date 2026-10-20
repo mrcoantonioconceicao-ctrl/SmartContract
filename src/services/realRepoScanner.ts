@@ -313,13 +313,13 @@ function analyzeRustAnchorFile(filePath: string, content: string): RealScanFindi
       id: `SPACE-PASS-${filePath}`,
       ruleId: 'RENT_EXEMPT_EXACT_ALLOCATION',
       category: 'RENT_EXEMPT_MEMORY',
-      title: 'Memoria Rent-Exempt Exata de 49 Bytes Alocada',
+      title: 'Memoria Rent-Exempt Exata de 49B (UserCounter) e 119B (AuditReceipt) Alocada',
       severity: 'PASS',
       file: filePath,
       line: spaceLine !== -1 ? spaceLine + 1 : 1,
-      snippet: spaceLine !== -1 ? lines[spaceLine].trim() : 'space = UserCounter::ACCOUNT_SPACE (49B)',
-      description: 'Alocacao milimetrica de 49 bytes (8 disc + 32 auth + 8 count + 1 bump) garantindo Rent-Exempt permanente.',
-      recommendation: 'Manter a constante exata.',
+      snippet: spaceLine !== -1 ? lines[spaceLine].trim() : 'space = UserCounter::ACCOUNT_SPACE (49B) / AuditReceipt (119B)',
+      description: 'Alocacao milimetrica de 49 bytes (UserCounter) e 119 bytes (AuditReceipt: 8 disc + 32 auditor + 32 target + 32 hash + 8 ts + 4 findings + 1 score + 1 risk + 1 bump) garantindo Rent-Exempt permanente.',
+      recommendation: 'Manter as constantes exatas de espaco no layout de memoria.',
     });
   }
 

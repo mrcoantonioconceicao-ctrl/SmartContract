@@ -110,9 +110,9 @@ jobs:
             ${{ runner.os }}-cargo-v2-
             ${{ runner.os }}-cargo-
 
-      - name: Install cargo-audit
+      - name: Install cargo-audit (v0.22.2)
         run: |
-          which cargo-audit || cargo install cargo-audit --locked
+          which cargo-audit || cargo install cargo-audit --version 0.22.2 --locked
 
       - name: Verify Cargo Dependencies & Lockfile
         run: |

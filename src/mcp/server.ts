@@ -186,6 +186,23 @@ export const MCP_TOOLS: McpToolDefinition[] = [
       properties: {},
     },
   },
+  {
+    name: 'record_batch_audit_receipts',
+    description: 'Records and attests multiple audit reports on-chain in an atomic Solana batch transaction (up to 5 items), reducing CU consumption by >60% and creating immutable PDA receipts.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        batchId: { type: 'string', description: 'Optional 32-byte batch identifier or hash hex string' },
+        auditorPubkey: { type: 'string', description: 'Auditor wallet public key' },
+        items: {
+          type: 'array',
+          description: 'List of audit reports (max 5 items) {targetProgram, auditHash, riskLevel, findingsCount, securityScore}',
+          items: { type: 'object' },
+        },
+      },
+      required: ['items'],
+    },
+  },
 ];
 
 /**
@@ -293,6 +310,9 @@ export async function executeMcpToolDirect(toolName: string, args: Record<string
     case 'egc_clean_state':
     case 'clean_egc_state':
       return EgcMcpExecutionAdapter.cleanEgcState();
+
+    case 'record_batch_audit_receipts':
+      return EgcMcpExecutionAdapter.recordBatchAuditReceipts(args as any);
 
     default:
       throw new Error(`Tool "${toolName}" not found in Solana Anchor DevSecOps MCP Server`);

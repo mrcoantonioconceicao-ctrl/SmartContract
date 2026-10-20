@@ -22,6 +22,8 @@ import { executeEgcOneClickFlow, getTargetRepositoryFiles } from '../services/eg
 import { extractRepositoryArchitectureContext } from '../services/contextualEngine.ts';
 import { runAnchorLint } from '../lint/anchorLint.ts';
 import { purgeEgcState } from '../services/egcStateManager.ts';
+import { recordBatchAuditReceiptsOnChain } from '../services/auditReceiptService.ts';
+import { PublicKey } from '@solana/web3.js';
 
 export interface GenerateContractArgs {
   programName?: string;
@@ -227,5 +229,29 @@ export class EgcMcpExecutionAdapter {
    */
   public static async cleanEgcState() {
     return purgeEgcState();
+  }
+
+  /**
+   * 13. Record Batch Audit Receipts On-Chain (up to 5 items)
+   */
+  public static async recordBatchAuditReceipts(args: {
+    auditorPubkey?: string;
+    batchId?: string;
+    items?: Array<{
+      targetProgram: string;
+      auditHash: string;
+      riskLevel: 0 | 1 | 2 | 3 | 4;
+      findingsCount: number;
+      securityScore: number;
+    }>;
+  }) {
+    if (!args.items || args.items.length === 0) {
+      throw new Error('items e obrigatorio e nao pode ser vazio.');
+    }
+    return recordBatchAuditReceiptsOnChain({
+      auditorPubkey: args.auditorPubkey ? new PublicKey(args.auditorPubkey) : undefined,
+      batchId: args.batchId,
+      items: args.items,
+    });
   }
 }

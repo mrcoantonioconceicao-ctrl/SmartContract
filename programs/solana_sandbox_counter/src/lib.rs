@@ -1,6 +1,7 @@
 use anchor_lang::prelude::*;
 
 pub mod domain;
+use domain::{AuditReceiptItemInput, BatchAuditDomainSpec};
 
 // Standard Sandbox Program ID for the Anchor Counter DevSecOps environment
 declare_id!("CntSandbox111111111111111111111111111111111");
@@ -100,6 +101,68 @@ pub mod solana_sandbox_counter {
         msg!("Security Score: {}/100, Risk Level: {}, Findings: {}", security_score, risk_level, findings_count);
         Ok(())
     }
+
+    /// Records batch audit receipts on-chain in an atomic transaction (up to 5 items),
+    /// optimizing Compute Units and updating the cumulative audit counter.
+    pub fn record_batch_audit_receipts(
+        ctx: Context<RecordBatchAuditReceipts>,
+        batch_id: [u8; 32],
+        items: Vec<AuditReceiptItemInput>,
+    ) -> Result<()> {
+        require!(!items.is_empty(), SecurityErrorCode::EmptyBatchNotAllowed);
+        require!(
+            items.len() <= BatchAuditDomainSpec::MAX_BATCH_SIZE,
+            SecurityErrorCode::BatchSizeExceeded
+        );
+
+        let mut total_findings: u32 = 0;
+        let mut total_score: u32 = 0;
+        let mut max_risk: u8 = 0;
+
+        for item in items.iter() {
+            require!(
+                BatchAuditDomainSpec::validate_security_score(item.security_score),
+                SecurityErrorCode::InvalidSecurityScore
+            );
+            require!(
+                BatchAuditDomainSpec::validate_risk_level(item.risk_level),
+                SecurityErrorCode::InvalidRiskLevel
+            );
+
+            total_findings = total_findings
+                .checked_add(item.findings_count)
+                .ok_or(SecurityErrorCode::NumericalOverflow)?;
+            total_score = total_score
+                .checked_add(item.security_score as u32)
+                .ok_or(SecurityErrorCode::NumericalOverflow)?;
+            if item.risk_level > max_risk {
+                max_risk = item.risk_level;
+            }
+        }
+
+        let avg_score = (total_score / items.len() as u32) as u8;
+
+        let batch = &mut ctx.accounts.batch_summary;
+        batch.auditor = ctx.accounts.auditor.key();
+        batch.batch_id = batch_id;
+        batch.receipts_count = items.len() as u8;
+        batch.total_findings = total_findings;
+        batch.average_security_score = avg_score;
+        batch.highest_risk_level = max_risk;
+        batch.timestamp = Clock::get()?.unix_timestamp;
+        batch.bump = ctx.bumps.batch_summary;
+
+        if let Some(counter) = &mut ctx.accounts.counter {
+            counter.count = counter
+                .count
+                .checked_add(items.len() as u64)
+                .ok_or(SecurityErrorCode::NumericalOverflow)?;
+            msg!("Cumulative audits registered after batch: {}", counter.count);
+        }
+
+        msg!("Batch audit receipt recorded on-chain. Items: {}, Avg Score: {}", items.len(), avg_score);
+        Ok(())
+    }
 }
 
 // ==========================================
@@ -188,6 +251,38 @@ pub struct RecordAuditReceipt<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[derive(Accounts)]
+#[instruction(batch_id: [u8; 32])]
+pub struct RecordBatchAuditReceipts<'info> {
+    #[account(
+        init,
+        payer = auditor,
+        space = BatchAuditSummary::ACCOUNT_SPACE,
+        seeds = [
+            BatchAuditSummary::SEED_PREFIX,
+            auditor.key().as_ref(),
+            batch_id.as_ref()
+        ],
+        bump
+    )]
+    pub batch_summary: Account<'info, BatchAuditSummary>,
+
+    #[account(
+        mut,
+        seeds = [b"counter", auditor.key().as_ref()],
+        bump = counter.bump,
+        has_one = authority @ SecurityErrorCode::UnauthorizedAuthority
+    )]
+    pub counter: Option<Account<'info, UserCounter>>,
+
+    #[account(mut)]
+    pub auditor: Signer<'info>,
+
+    pub authority: Option<Signer<'info>>,
+
+    pub system_program: Program<'info, System>,
+}
+
 // ==========================================
 // STATE DATA STRUCTURE & MEMORY ALLOCATION
 // ==========================================
@@ -251,6 +346,44 @@ impl AuditReceipt {
         + Self::BUMP_SPACE;
 }
 
+/// Aggregated Batch Audit Summary account storing verified security posture for up to 5 programs
+#[account]
+pub struct BatchAuditSummary {
+    pub auditor: Pubkey,               // 32 bytes
+    pub batch_id: [u8; 32],            // 32 bytes (batch merkle root or hash)
+    pub receipts_count: u8,            // 1 byte (max 5)
+    pub total_findings: u32,           // 4 bytes
+    pub average_security_score: u8,    // 1 byte (0 to 100)
+    pub highest_risk_level: u8,        // 1 byte (0=SECURE, 1=LOW, 2=MEDIUM, 3=HIGH, 4=CRITICAL)
+    pub timestamp: i64,                // 8 bytes (Unix timestamp)
+    pub bump: u8,                      // 1 byte
+}
+
+impl BatchAuditSummary {
+    pub const SEED_PREFIX: &'static [u8] = b"batch_audit";
+
+    pub const DISCRIMINATOR_SPACE: usize = 8;
+    pub const AUDITOR_SPACE: usize = 32;
+    pub const BATCH_ID_SPACE: usize = 32;
+    pub const RECEIPTS_COUNT_SPACE: usize = 1;
+    pub const TOTAL_FINDINGS_SPACE: usize = 4;
+    pub const AVERAGE_SECURITY_SCORE_SPACE: usize = 1;
+    pub const HIGHEST_RISK_LEVEL_SPACE: usize = 1;
+    pub const TIMESTAMP_SPACE: usize = 8;
+    pub const BUMP_SPACE: usize = 1;
+
+    /// Total space: 8 + 32 + 32 + 1 + 4 + 1 + 1 + 8 + 1 = 88 bytes
+    pub const ACCOUNT_SPACE: usize = Self::DISCRIMINATOR_SPACE
+        + Self::AUDITOR_SPACE
+        + Self::BATCH_ID_SPACE
+        + Self::RECEIPTS_COUNT_SPACE
+        + Self::TOTAL_FINDINGS_SPACE
+        + Self::AVERAGE_SECURITY_SCORE_SPACE
+        + Self::HIGHEST_RISK_LEVEL_SPACE
+        + Self::TIMESTAMP_SPACE
+        + Self::BUMP_SPACE;
+}
+
 // ==========================================
 // SECURITY ERROR CODES
 // ==========================================
@@ -274,4 +407,10 @@ pub enum SecurityErrorCode {
 
     #[msg("Risk level must be between 0 (SECURE) and 4 (CRITICAL)")]
     InvalidRiskLevel,
+
+    #[msg("Empty batch is not allowed")]
+    EmptyBatchNotAllowed,
+
+    #[msg("Batch size exceeds maximum limit of 5 items")]
+    BatchSizeExceeded,
 }
