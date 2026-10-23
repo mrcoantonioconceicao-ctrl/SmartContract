@@ -7,7 +7,7 @@ use domain::{AuditReceiptItemInput, BatchAuditDomainSpec};
 declare_id!("CntSandbox111111111111111111111111111111111");
 
 #[program]
-pub mod anchor_security_program {
+pub mod solana_sandbox_counter {
     use super::*;
 
     /// Initializes a deterministically derived PDA counter account for the signing authority.
