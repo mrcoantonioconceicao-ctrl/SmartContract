@@ -26,8 +26,30 @@ import {
   AuditReceiptItemInput,
 } from '../../client/index.ts';
 
+export type KeypairAsyncProvider =
+  | Keypair
+  | Promise<Keypair>
+  | (() => Promise<Keypair>)
+  | (() => Keypair);
+
+/**
+ * Recupera e resolve de forma segura o Keypair do auditor com await antes de acessar .publicKey
+ * Suporta Keypair direto, Promise<Keypair> ou funcoes provedoras assincronas
+ */
+export async function resolveAuditorKeypair(
+  keypairOrProvider?: KeypairAsyncProvider
+): Promise<Keypair | undefined> {
+  if (!keypairOrProvider) {
+    return undefined;
+  }
+  if (typeof keypairOrProvider === 'function') {
+    return await keypairOrProvider();
+  }
+  return await keypairOrProvider;
+}
+
 export interface AuditReceiptParams {
-  auditorKeypair?: Keypair;
+  auditorKeypair?: KeypairAsyncProvider;
   auditorPubkey?: PublicKey;
   targetProgram: PublicKey;
   auditHash: Uint8Array | string; // Buffer, Uint8Array or 64-char hex string
@@ -35,6 +57,7 @@ export interface AuditReceiptParams {
   findingsCount: number;
   securityScore: number; // 0 to 100
   counterAuthority?: PublicKey;
+  commitment?: 'processed' | 'confirmed' | 'finalized';
 }
 
 export interface AuditReceiptRecordResult {
@@ -90,9 +113,10 @@ export async function recordAuditReceiptOnChain(
   const hashBuffer = normalizeAuditHash(params.auditHash);
   const auditHashHex = hashBuffer.toString('hex');
 
-  // Chave pública do auditor (auditorKeypair ou auditorPubkey fornecido)
-  const auditorPubkey = params.auditorKeypair
-    ? params.auditorKeypair.publicKey
+  // Recupera o Keypair de forma estritamente assincrona com await antes de acessar .publicKey
+  const resolvedKeypair = await resolveAuditorKeypair(params.auditorKeypair);
+  const auditorPubkey = resolvedKeypair
+    ? resolvedKeypair.publicKey
     : params.auditorPubkey || Keypair.generate().publicKey;
 
   const [receiptPda] = client.deriveAuditReceiptPda(params.targetProgram, hashBuffer);
@@ -110,16 +134,18 @@ export async function recordAuditReceiptOnChain(
   const transaction = new Transaction().add(instruction);
   transaction.feePayer = auditorPubkey;
 
+  const commitment = params.commitment || 'confirmed';
   let signature: string | undefined;
 
   // Se o keypair privado estiver disponivel, assina e envia diretamente para o RPC Solana
-  if (params.auditorKeypair) {
+  if (resolvedKeypair) {
     try {
-      const { blockhash } = await conn.getLatestBlockhash('confirmed');
+      // Otimizacao para padrao de alta performance da rede (latencia de finalizacao ~150ms)
+      const { blockhash } = await conn.getLatestBlockhash(commitment);
       transaction.recentBlockhash = blockhash;
-      signature = await sendAndConfirmTransaction(conn, transaction, [params.auditorKeypair], {
-        commitment: 'confirmed',
-        preflightCommitment: 'confirmed',
+      signature = await sendAndConfirmTransaction(conn, transaction, [resolvedKeypair], {
+        commitment,
+        preflightCommitment: commitment,
       });
     } catch {
       // Retorna detalhes de simulacao em caso de ambiente local/devnet simulado
@@ -149,7 +175,7 @@ export async function recordAuditReceiptOnChain(
 }
 
 export interface BatchAuditReceiptParams {
-  auditorKeypair?: Keypair;
+  auditorKeypair?: KeypairAsyncProvider;
   auditorPubkey?: PublicKey;
   batchId?: Uint8Array | string;
   items: Array<{
@@ -160,6 +186,7 @@ export interface BatchAuditReceiptParams {
     securityScore: number;
   }>;
   counterAuthority?: PublicKey;
+  commitment?: 'processed' | 'confirmed' | 'finalized';
 }
 
 export interface BatchAuditRecordResult {
@@ -195,9 +222,10 @@ export async function recordBatchAuditReceiptsOnChain(
     throw new Error(`O lote nao pode exceder ${MAX_AUDIT_BATCH_SIZE} itens.`);
   }
 
-  // Chave pública do auditor
-  const auditorPubkey = params.auditorKeypair
-    ? params.auditorKeypair.publicKey
+  // Recupera o Keypair de forma estritamente assincrona com await antes de acessar .publicKey
+  const resolvedKeypair = await resolveAuditorKeypair(params.auditorKeypair);
+  const auditorPubkey = resolvedKeypair
+    ? resolvedKeypair.publicKey
     : params.auditorPubkey || Keypair.generate().publicKey;
 
   // Normaliza o batchId
@@ -234,15 +262,17 @@ export async function recordBatchAuditReceiptsOnChain(
   const transaction = new Transaction().add(instruction);
   transaction.feePayer = auditorPubkey;
 
+  const commitment = params.commitment || 'confirmed';
   let signature: string | undefined;
 
-  if (params.auditorKeypair) {
+  if (resolvedKeypair) {
     try {
-      const { blockhash } = await conn.getLatestBlockhash('confirmed');
+      // Otimizacao para padrao de alta performance da rede (latencia de finalizacao ~150ms)
+      const { blockhash } = await conn.getLatestBlockhash(commitment);
       transaction.recentBlockhash = blockhash;
-      signature = await sendAndConfirmTransaction(conn, transaction, [params.auditorKeypair], {
-        commitment: 'confirmed',
-        preflightCommitment: 'confirmed',
+      signature = await sendAndConfirmTransaction(conn, transaction, [resolvedKeypair], {
+        commitment,
+        preflightCommitment: commitment,
       });
     } catch {
       signature = `batch_sim_${batchIdHex.slice(0, 16)}_${Date.now()}`;

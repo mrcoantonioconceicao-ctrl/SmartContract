@@ -1,0 +1,50 @@
+# ==============================================================================
+# Clippy Linter Configuration for Solana Anchor DevSecOps
+# Modulo: .github/linters/.rust-clippy.toml
+# Autoria Oficial: Marco Antonio Conceicao
+# Politica de Governanca: Regra C44 (Nao-Destrutiva) - Zero Mocks & Zero Stubs
+#
+# Padronizacao militar de analise estatica Rust entre IDE local e GitHub Actions.
+# Trata todos os avisos (warnings) como erros fatais (deny).
+# ==============================================================================
+
+# Versao Minima de Rust Suportada (MSRV)
+msrv = "1.79.0"
+
+# Regras estritas de seguranca de memoria e execucao na SVM
+avoid-breaking-exported-api = true
+cognitive-complexity-threshold = 20
+too-many-arguments-threshold = 8
+type-complexity-threshold = 250
+single-char-binding-names-threshold = 4
+
+# Proibicao de anti-patterns criticos na SVM (panics e memory leaks)
+# Flags de comando equivalentes executadas no runner:
+# cargo clippy --workspace --all-targets -- -D warnings \
+#   -D clippy::panic \
+#   -D clippy::unwrap_used \
+#   -D clippy::expect_used \
+#   -D clippy::indexing_slicing \
+#   -D clippy::integer_arithmetic \
+#   -D clippy::arithmetic_side_effects \
+#   -D clippy::cast_possible_truncation \
+#   -D clippy::cast_possible_wrap \
+#   -D clippy::cast_sign_loss \
+#   -D clippy::fallible_impl_from \
+#   -D clippy::mem_forget \
+#   -D clippy::modulo_one \
+#   -D clippy::multiple_inherent_impl \
+#   -D clippy::todo \
+#   -D clippy::unimplemented
+
+# Metodos estritamente desabilitados em codigo produtivo de contratos Solana
+disallowed-methods = [
+    { path = "std::panic", reason = "Panics no BPF/SVM causam abortos abruptos; use erros declarativos SecurityErrorCode com Ok(()) ou Err(error!(...))" },
+    { path = "core::panic", reason = "Panics no BPF/SVM causam abortos abruptos; use erros declarativos SecurityErrorCode" },
+    { path = "std::process::exit", reason = "Proibido em smart contracts Solana Anchor" }
+]
+
+# Tipos desabilitados para prevencao de vazamento de memoria ou indeterminismo
+disallowed-types = [
+    { path = "std::cell::RefCell", reason = "Estruturas nao thread-safe com borrow dinamico nao devem ser usadas no modelo de execucao deterministico da SVM" }
+]

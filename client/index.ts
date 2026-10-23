@@ -46,10 +46,26 @@ export interface CounterAccountData {
   bump: number;
 }
 
+/**
+ * Tipagem estrita de Lamports para compatibilidade com versoes modernas da Solana Web3
+ */
+export type Lamports = number | bigint;
+
+/**
+ * Converte PublicKey para Uint8Array compativel com versoes modernas de @solana/web3.js
+ * e substitui o metodo legado .toBuffer() em derivacoes de sementes PDA
+ */
+export function pubkeyToUint8Array(pubkey: PublicKey): Uint8Array {
+  if (typeof (pubkey as unknown as { toUint8Array?: () => Uint8Array }).toUint8Array === 'function') {
+    return (pubkey as unknown as { toUint8Array: () => Uint8Array }).toUint8Array();
+  }
+  return pubkey.toBytes();
+}
+
 export interface SimulationResult {
   pdaAddress: string;
   bump: number;
-  rentExemptLamports: number;
+  rentExemptLamports: Lamports;
   expectedSpace: number;
   securityChecks: {
     signerCheck: boolean;
@@ -79,7 +95,7 @@ export class CounterClient {
    */
   public deriveCounterPda(authority: PublicKey): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
-      [Buffer.from('counter'), authority.toBuffer()],
+      [Buffer.from('counter'), pubkeyToUint8Array(authority)],
       this.programId
     );
   }
@@ -87,7 +103,7 @@ export class CounterClient {
   /**
    * Calculates minimum balance for rent exemption for 49 bytes
    */
-  public async getRentExemptBalance(): Promise<number> {
+  public async getRentExemptBalance(): Promise<Lamports> {
     try {
       return await this.connection.getMinimumBalanceForRentExemption(USER_COUNTER_SPACE);
     } catch {
@@ -207,7 +223,7 @@ export class CounterClient {
 
   /**
    * Derives deterministic PDA address for AuditReceipt
-   * Seeds: [b"audit_receipt", target_program.toBuffer(), audit_hash]
+   * Seeds: [b"audit_receipt", target_program (bytes), audit_hash]
    */
   public deriveAuditReceiptPda(
     targetProgram: PublicKey,
@@ -218,7 +234,7 @@ export class CounterClient {
       throw new Error(`O auditHash deve ter exatamente 32 bytes (recebido: ${hashBuffer.length} bytes).`);
     }
     return PublicKey.findProgramAddressSync(
-      [Buffer.from('audit_receipt'), targetProgram.toBuffer(), hashBuffer],
+      [Buffer.from('audit_receipt'), pubkeyToUint8Array(targetProgram), hashBuffer],
       this.programId
     );
   }
@@ -283,7 +299,7 @@ export class CounterClient {
 
   /**
    * Derives deterministic PDA address for BatchAuditSummary
-   * Seeds: [b"batch_audit", auditor.toBuffer(), batch_id]
+   * Seeds: [b"batch_audit", auditor (bytes), batch_id]
    */
   public deriveBatchAuditSummaryPda(
     auditor: PublicKey,
@@ -294,7 +310,7 @@ export class CounterClient {
       throw new Error(`O batchId deve ter exatamente 32 bytes (recebido: ${batchBuffer.length} bytes).`);
     }
     return PublicKey.findProgramAddressSync(
-      [Buffer.from('batch_audit'), auditor.toBuffer(), batchBuffer],
+      [Buffer.from('batch_audit'), pubkeyToUint8Array(auditor), batchBuffer],
       this.programId
     );
   }
@@ -338,7 +354,7 @@ export class CounterClient {
 
     let offset = 44;
     for (const item of items) {
-      item.targetProgram.toBuffer().copy(data, offset, 0, 32);
+      Buffer.from(pubkeyToUint8Array(item.targetProgram)).copy(data, offset, 0, 32);
       offset += 32;
 
       const hashBuf = Buffer.isBuffer(item.auditHash) ? item.auditHash : Buffer.from(item.auditHash);

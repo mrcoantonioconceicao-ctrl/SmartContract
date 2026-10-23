@@ -23,6 +23,7 @@ import {
   BATCH_AUDIT_SUMMARY_SPACE,
   MAX_AUDIT_BATCH_SIZE,
   INSTRUCTION_DISCRIMINATORS,
+  pubkeyToUint8Array,
 } from '../client/index.ts';
 import { AUDIT_RECEIPT_SPEC, CONTRACT_SECURITY_SPEC } from '../src/contracts/solanaSandboxCounter.ts';
 import {
@@ -251,6 +252,47 @@ async function runSecurityTestSuite(): Promise<void> {
   assertTest(
     receiptResult.receiptPda === receiptPda.toBase58(),
     'Endereco PDA retornado pelo servico coincide exatamente com a derivacao on-chain'
+  );
+
+  // Validacao de pubkeyToUint8Array moderno (substituicao de toBuffer)
+  const pubkeyBytes = pubkeyToUint8Array(authorityKeypair.publicKey);
+  assertTest(
+    pubkeyBytes instanceof Uint8Array && pubkeyBytes.length === 32,
+    'pubkeyToUint8Array converte PublicKey para Uint8Array de 32 bytes sem depender de toBuffer legada'
+  );
+
+  // Gravacao com Keypair assincrono Promise<Keypair> (exige await antes de acessar .publicKey)
+  const asyncReceiptResult = await recordAuditReceiptOnChain({
+    auditorKeypair: Promise.resolve(authorityKeypair),
+    targetProgram: targetProgramKeypair.publicKey,
+    auditHash: validHash,
+    riskLevel: 0,
+    findingsCount: 0,
+    securityScore: 100,
+    commitment: 'confirmed',
+  });
+  assertTest(
+    asyncReceiptResult.success === true && asyncReceiptResult.receiptPda === receiptPda.toBase58(),
+    'Adaptador recordAuditReceiptOnChain resolve Keypair assincrono via await antes de acessar .publicKey'
+  );
+
+  // Gravacao em lote com provedor funcional () => Promise<Keypair> (latencia otimizada 150ms)
+  const asyncBatchResult = await recordBatchAuditReceiptsOnChain({
+    auditorKeypair: async () => authorityKeypair,
+    items: [
+      {
+        targetProgram: targetProgramKeypair.publicKey,
+        auditHash: validHash,
+        riskLevel: 0,
+        findingsCount: 0,
+        securityScore: 100,
+      },
+    ],
+    commitment: 'confirmed',
+  });
+  assertTest(
+    asyncBatchResult.success === true && asyncBatchResult.rentExemptBytes === 88,
+    'Adaptador recordBatchAuditReceiptsOnChain processa recibos em lote com resolucao assincrona e alta performance'
   );
 
   // -------------------------------------------------------------

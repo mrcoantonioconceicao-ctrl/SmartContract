@@ -16,7 +16,10 @@ target/
 # Solana & Anchor artifacts
 .anchor/
 test-ledger/
-idls/
 deploy/
 *.so
+
+# AI Studio artifacts
+.aistudio/
+
 

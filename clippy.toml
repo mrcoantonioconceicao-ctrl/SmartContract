@@ -1,0 +1,23 @@
+# ==============================================================================
+# Clippy Linter Configuration for Solana Anchor DevSecOps
+# Modulo: clippy.toml
+# Autoria Oficial: Marco Antonio Conceicao
+# Politica de Governanca: Regra C44 (Nao-Destrutiva) - Zero Mocks & Zero Stubs
+# ==============================================================================
+
+msrv = "1.79.0"
+avoid-breaking-exported-api = true
+cognitive-complexity-threshold = 20
+too-many-arguments-threshold = 8
+type-complexity-threshold = 250
+single-char-binding-names-threshold = 4
+
+disallowed-methods = [
+    { path = "std::panic", reason = "Panics no BPF/SVM causam abortos abruptos; use erros declarativos SecurityErrorCode com Ok(()) ou Err(error!(...))" },
+    { path = "core::panic", reason = "Panics no BPF/SVM causam abortos abruptos; use erros declarativos SecurityErrorCode" },
+    { path = "std::process::exit", reason = "Proibido em smart contracts Solana Anchor" }
+]
+
+disallowed-types = [
+    { path = "std::cell::RefCell", reason = "Estruturas nao thread-safe com borrow dinamico nao devem ser usadas no modelo de execucao deterministico da SVM" }
+]

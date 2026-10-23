@@ -88,7 +88,7 @@ export const DEFAULT_PROGRAM_ID = new PublicKey("CntSandbox111111111111111111111
 export const USER_COUNTER_SPACE = 49;
 export class CounterClient {
   public deriveCounterPda(authority: PublicKey): [PublicKey, number] {
-    return PublicKey.findProgramAddressSync([Buffer.from("counter"), authority.toBuffer()], DEFAULT_PROGRAM_ID);
+    return PublicKey.findProgramAddressSync([Buffer.from("counter"), authority.toBytes()], DEFAULT_PROGRAM_ID);
   }
 }`,
     },

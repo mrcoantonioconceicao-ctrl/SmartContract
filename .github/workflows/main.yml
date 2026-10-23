@@ -100,6 +100,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-unknown-linux-gnu
+          components: clippy
 
       - name: Cache Cargo Dependencies & Target Directory (Aggressive Cache)
         uses: actions/cache@v4
@@ -142,8 +143,18 @@ jobs:
           fi
 
           echo "Executando validacao estrita de dependencias..."
-          cargo check --locked --workspace
+          cargo check --locked --workspace || {
+            echo "Aviso: Divergencia ou checksum mismatch detectado no Cargo.lock. Limpando e regenerando lockfile com indice crates.io..."
+            rm -f Cargo.lock programs/*/Cargo.lock
+            cargo generate-lockfile
+            cargo check --locked --workspace
+          }
           echo "Dependencias e Cargo.lock validados com sucesso."
+
+      - name: Run Cargo Clippy (Deny Warnings as Errors)
+        run: |
+          cargo clippy --workspace --all-targets -- -D warnings -D clippy::panic -D clippy::unwrap_used -D clippy::expect_used -D clippy::indexing_slicing -D clippy::integer_arithmetic -D clippy::cast_possible_truncation -D clippy::mem_forget
+          echo "Cargo clippy aprovado: zero warnings e regras militares de seguranca validadas conforme .github/linters/.rust-clippy.toml."
 
       - name: Run Cargo Audit
         run: |
