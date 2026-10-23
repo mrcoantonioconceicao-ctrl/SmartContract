@@ -11,10 +11,14 @@ import path from 'path';
 import { executeMcpToolDirect, MCP_TOOLS } from '../src/mcp/server.ts';
 import { createGitHubPullRequest } from '../src/services/githubPrService.ts';
 import { buildContractSecurityGraph } from '../src/services/graphRAGService.ts';
+import { buildEnterpriseKnowledgeGraph } from '../src/services/graphRAGEnterpriseService.ts';
 import { generateOmgBpmnXml } from '../src/services/bpmnWorkflowService.ts';
 import { SOA_CATALOG } from '../src/services/soaCatalogService.ts';
 import { runRealRepositoryScan } from '../src/services/realRepoScanner.ts';
 import { createRealGitHubIssues } from '../src/services/githubIssueService.ts';
+import { purgeEgcState } from '../src/services/egcStateManager.ts';
+import { getLearningState, recordPrFeedbackEvent } from '../src/services/continuousLearningEngine.ts';
+import { processSecurityAgentChat } from '../src/services/securityAgentService.ts';
 
 const app = express();
 app.use(express.json({ limit: '10mb' }));
@@ -91,7 +95,8 @@ app.post('/api/graphrag/audit', async (req, res) => {
   try {
     const { sourceCode } = req.body;
     const graphResult = buildContractSecurityGraph(sourceCode || '');
-    res.json({ success: true, graph: graphResult });
+    const enterpriseGraph = buildEnterpriseKnowledgeGraph(sourceCode || '');
+    res.json({ success: true, graph: graphResult, enterpriseGraph });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -191,6 +196,69 @@ app.post('/api/github/issues', async (req, res) => {
     const msg = error.message || 'Falha ao criar issues no GitHub';
     const status = msg.includes('401') ? 401 : msg.includes('404') ? 404 : 400;
     res.status(status).json({ success: false, error: msg });
+  }
+});
+
+// 10. EGC State Clean & Auto-Purge Endpoint (egc clean)
+app.post('/api/egc/clean', (_req, res) => {
+  try {
+    const result = purgeEgcState();
+    res.json(result);
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 11. Continuous Learning & Model Weights Persistence Endpoints
+app.get('/api/learning/state', (_req, res) => {
+  try {
+    const state = getLearningState();
+    res.json({ success: true, state });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/learning/feedback', (req, res) => {
+  try {
+    const { source, ruleId, repository, deltaWeight, explanation } = req.body;
+    if (!ruleId) {
+      return res.status(400).json({ success: false, error: 'ruleId e obrigatorio' });
+    }
+    const updatedState = recordPrFeedbackEvent({
+      source: source || 'MANUAL_FEEDBACK',
+      ruleId,
+      repository: repository || 'LocalDevSecOpsWorkspace',
+      deltaWeight: typeof deltaWeight === 'number' ? deltaWeight : 2,
+      explanation: explanation || 'Correcao de seguranca validada pelo desenvolvedor',
+    });
+    res.json({ success: true, updatedState });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 12. Security Agent Chat Endpoint (MCP Server & GraphRAG/AST Context)
+app.post('/api/security-agent/chat', async (req, res) => {
+  try {
+    const { message, history, context } = req.body;
+    if (!message || typeof message !== 'string') {
+      return res.status(400).json({ success: false, error: 'Mensagem e obrigatoria.' });
+    }
+
+    const result = await processSecurityAgentChat(
+      message,
+      Array.isArray(history) ? history : [],
+      context || {}
+    );
+
+    res.json({
+      success: true,
+      ...result,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message || 'Erro no agente de seguranca' });
   }
 });
 

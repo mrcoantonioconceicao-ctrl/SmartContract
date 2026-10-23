@@ -699,9 +699,9 @@ crate-type = ["cdylib", "lib"]
 name = "solana_sandbox_counter"
 
 [dependencies]
-anchor-lang = "0.30.1"
-anchor-spl = "0.30.1"
-solana-program = "~1.18.26"
+anchor-lang = "=0.29.0"
+anchor-spl = "0.29.0"
+solana-program = "=1.18.26"
 thiserror = "1.0.64"
 
 [package.metadata.audit]
