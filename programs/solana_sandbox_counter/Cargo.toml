@@ -17,7 +17,7 @@ default = []
 
 [dependencies]
 anchor-lang = "=0.29.0"
-solana-program = "=1.18.26"
+solana-program = "=2.0.25"
 
 [lints]
 workspace = true
