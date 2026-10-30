@@ -5,7 +5,8 @@
 
 export const PROGRAM_ID = "CntSandbox111111111111111111111111111111111";
 
-export const RUST_CONTRACT_SOURCE = `use anchor_lang::prelude::*;
+export const RUST_CONTRACT_SOURCE = `// #![allow(unexpected_cfgs)]
+use anchor_lang::prelude::*;
 
 // Standard Sandbox Program ID for the Anchor Counter DevSecOps environment
 declare_id!("CntSandbox111111111111111111111111111111111");

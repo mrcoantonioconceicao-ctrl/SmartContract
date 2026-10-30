@@ -360,7 +360,7 @@ git push origin corrigido/remediacao-c44
 - **Persistencia Multi-Sessao:** Armazenamento em `localStorage` e rotas REST `/api/learning/state` e `/api/learning/feedback`.
 
 ### 9.3 Servico de Linting de Seguranca Estrito (Clippy & ESLint)
-- **Clippy Flags Estritas:** Configuracao com `--deny warnings`, `--deny clippy::panic`, `--deny clippy::unwrap_used`, `--deny clippy::expect_used` e `--deny clippy::integer_arithmetic`.
+- **Clippy Flags Estritas:** Configuracao com `--deny warnings`, `--deny clippy::panic`, `--deny clippy::unwrap_used`, `--deny clippy::expect_used` e `--deny clippy::arithmetic_side_effects`.
 - **ESLint Solana Web3:** Regras para validacao de assinaturas (`@solana-security/require-signer-privilege`) e tratamento assincrono.
 - **Perfis de Rigor Alternaveis:**
   - `audit_strict`: Rigor maximo enterprise (proibicao absoluta de panics e warnings).
@@ -630,7 +630,7 @@ O repositorio implementa um padrao operacional rigoroso para prontidao instituci
   - `-D clippy::unwrap_used`
   - `-D clippy::expect_used`
   - `-D clippy::indexing_slicing`
-  - `-D clippy::integer_arithmetic`
+  - `-D clippy::arithmetic_side_effects`
   - `-D clippy::cast_possible_truncation`
   - `-D clippy::mem_forget`
 

@@ -153,7 +153,7 @@ jobs:
 
       - name: Run Cargo Clippy (Deny Warnings as Errors)
         run: |
-          cargo clippy --workspace --all-targets -- -D warnings -D clippy::panic -D clippy::unwrap_used -D clippy::expect_used -D clippy::indexing_slicing -D clippy::integer_arithmetic -D clippy::cast_possible_truncation -D clippy::mem_forget
+          cargo clippy --workspace --all-targets -- -D warnings -D clippy::panic -D clippy::unwrap_used -D clippy::expect_used -D clippy::indexing_slicing -D clippy::arithmetic_side_effects -D clippy::cast_possible_truncation -D clippy::mem_forget -A unexpected_cfgs
           echo "Cargo clippy aprovado: zero warnings e regras militares de seguranca validadas conforme .github/linters/.rust-clippy.toml."
 
       - name: Run Cargo Audit

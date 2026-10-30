@@ -225,6 +225,7 @@ export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSync
       f.ruleId === 'clippy::unwrap_used' || 
       f.ruleId === 'clippy::expect_used' || 
       f.ruleId === 'clippy::integer_arithmetic' ||
+      f.ruleId === 'clippy::arithmetic_side_effects' ||
       f.severity === 'error'
     );
 

@@ -25,7 +25,6 @@ single-char-binding-names-threshold = 4
 #   -D clippy::unwrap_used \
 #   -D clippy::expect_used \
 #   -D clippy::indexing_slicing \
-#   -D clippy::integer_arithmetic \
 #   -D clippy::arithmetic_side_effects \
 #   -D clippy::cast_possible_truncation \
 #   -D clippy::cast_possible_wrap \

@@ -88,7 +88,7 @@ export const SECURITY_LINT_PROFILES: Record<LintRigorProfile, SecurityLintingPro
       '-D clippy::unwrap_used',
       '-D clippy::expect_used',
       '-D clippy::indexing_slicing',
-      '-D clippy::integer_arithmetic',
+      '-D clippy::arithmetic_side_effects',
       '-D clippy::cast_possible_truncation',
       '-D clippy::mem_forget',
     ],
@@ -115,7 +115,7 @@ export const SECURITY_LINT_PROFILES: Record<LintRigorProfile, SecurityLintingPro
         active: true,
       },
       {
-        flag: '-D clippy::integer_arithmetic',
+        flag: '-D clippy::arithmetic_side_effects',
         category: 'SAFE_MATH',
         description: 'Proibe operadores aritmeticos nativos (+, -, *, /) sem verificacao',
         rationaleSolana: 'Obriga uso de .checked_add(), .checked_sub() ou saturating_* para evitar estouro numerico.',
@@ -169,7 +169,7 @@ export const SECURITY_LINT_PROFILES: Record<LintRigorProfile, SecurityLintingPro
       '-W clippy::all',
       '-D clippy::panic',
       '-D clippy::unwrap_used',
-      '-W clippy::integer_arithmetic',
+      '-W clippy::arithmetic_side_effects',
     ],
     clippyRules: [
       {
@@ -187,7 +187,7 @@ export const SECURITY_LINT_PROFILES: Record<LintRigorProfile, SecurityLintingPro
         active: true,
       },
       {
-        flag: '-W clippy::integer_arithmetic',
+        flag: '-W clippy::arithmetic_side_effects',
         category: 'SAFE_MATH',
         description: 'Alerta sobre operacoes aritmeticas sem checked_*',
         rationaleSolana: 'Avisa sobre riscos potenciais de overflow.',
@@ -348,7 +348,7 @@ export function runSecurityLintAudit(
             findings.push({
               id: `CLIPPY-MATH-${file.path}-${lineNum}`,
               engine: 'clippy',
-              ruleId: 'clippy::integer_arithmetic',
+              ruleId: 'clippy::arithmetic_side_effects',
               file: file.path,
               line: lineNum,
               snippet: trimmed,

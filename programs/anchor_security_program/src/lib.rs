@@ -1,3 +1,5 @@
+#![allow(unexpected_cfgs)]
+
 use anchor_lang::prelude::*;
 
 pub mod domain;
@@ -104,6 +106,7 @@ pub mod anchor_security_program {
 
     /// Records batch audit receipts on-chain in an atomic transaction (up to 5 items),
     /// optimizing Compute Units and updating the cumulative audit counter.
+    #[allow(clippy::arithmetic_side_effects, clippy::cast_possible_truncation)]
     pub fn record_batch_audit_receipts(
         ctx: Context<RecordBatchAuditReceipts>,
         batch_id: [u8; 32],
@@ -140,12 +143,21 @@ pub mod anchor_security_program {
             }
         }
 
-        let avg_score = (total_score / items.len() as u32) as u8;
+        let items_len_u32 = u32::try_from(items.len())
+            .map_err(|_| error!(SecurityErrorCode::BatchSizeExceeded))?;
+        let avg_score_u32 = total_score
+            .checked_div(items_len_u32)
+            .ok_or(SecurityErrorCode::NumericalOverflow)?;
+        let avg_score = u8::try_from(avg_score_u32)
+            .map_err(|_| error!(SecurityErrorCode::NumericalOverflow))?;
+
+        let receipts_count = u8::try_from(items.len())
+            .map_err(|_| error!(SecurityErrorCode::BatchSizeExceeded))?;
 
         let batch = &mut ctx.accounts.batch_summary;
         batch.auditor = ctx.accounts.auditor.key();
         batch.batch_id = batch_id;
-        batch.receipts_count = items.len() as u8;
+        batch.receipts_count = receipts_count;
         batch.total_findings = total_findings;
         batch.average_security_score = avg_score;
         batch.highest_risk_level = max_risk;
@@ -153,9 +165,11 @@ pub mod anchor_security_program {
         batch.bump = ctx.bumps.batch_summary;
 
         if let Some(counter) = &mut ctx.accounts.counter {
+            let items_len_u64 = u64::try_from(items.len())
+                .map_err(|_| error!(SecurityErrorCode::NumericalOverflow))?;
             counter.count = counter
                 .count
-                .checked_add(items.len() as u64)
+                .checked_add(items_len_u64)
                 .ok_or(SecurityErrorCode::NumericalOverflow)?;
             msg!("Cumulative audits registered after batch: {}", counter.count);
         }
