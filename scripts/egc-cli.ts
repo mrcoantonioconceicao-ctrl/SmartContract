@@ -50,6 +50,9 @@ async function main() {
     console.log(`Status: ${report.passed ? 'PASSED' : 'FAILED'}`);
     console.log(`Erros: ${report.errorCount} | Avisos: ${report.warningCount}`);
     console.log(`Comando equivalente: ${report.clippyCommandEquivalent}`);
+    if (!report.passed) {
+      process.exit(1);
+    }
     return;
   }
 

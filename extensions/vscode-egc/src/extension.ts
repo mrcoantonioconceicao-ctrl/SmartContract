@@ -43,7 +43,7 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.showWarningMessage('Operacao cancelada: PAT do GitHub obrigatorio.');
         return;
       }
-      await config.update('egc.githubToken', inputToken, vscode.ConfigurationTarget.Global);
+      await config.update('githubToken', inputToken, vscode.ConfigurationTarget.Global);
     }
 
     provider.postMessageToWebview({ type: 'TRIGGER_CREATE_ISSUES' });

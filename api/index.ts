@@ -130,6 +130,9 @@ app.get('/api/soa/catalog', (_req, res) => {
 app.get('/api/egc/physical-files', (_req, res) => {
   try {
     const candidatePaths = [
+      'programs/anchor_security_program/src/lib.rs',
+      'programs/anchor_security_program/src/domain.rs',
+      'programs/anchor_security_program/Cargo.toml',
       'programs/solana_sandbox_counter/src/lib.rs',
       'programs/solana_sandbox_counter/src/domain.rs',
       'programs/solana_sandbox_counter/Cargo.toml',
@@ -161,6 +164,7 @@ app.post('/api/egc/scan', (req, res) => {
     let files = req.body?.files;
     if (!files || !Array.isArray(files) || files.length === 0) {
       const candidatePaths = [
+        'programs/anchor_security_program/src/lib.rs',
         'programs/solana_sandbox_counter/src/lib.rs',
         'client/index.ts',
         'src/contracts/solanaSandboxCounter.ts',

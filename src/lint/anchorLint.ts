@@ -396,6 +396,8 @@ const isDirectCliExecution =
 if (isDirectCliExecution) {
   const rootDir = process.cwd();
   const candidateFiles = [
+    'programs/anchor_security_program/src/lib.rs',
+    'programs/anchor_security_program/src/domain.rs',
     'programs/solana_sandbox_counter/src/lib.rs',
     'programs/solana_sandbox_counter/src/domain.rs'
   ];

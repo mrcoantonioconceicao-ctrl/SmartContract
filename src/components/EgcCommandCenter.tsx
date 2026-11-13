@@ -126,7 +126,11 @@ export function EgcCommandCenter() {
     if (isRunning) return;
 
     if (!repoName.trim()) {
-      alert('Por favor, informe o nome do repositorio alvo (ex: Plataforma-nexa) antes de iniciar a auditoria.');
+      setCurrentStep({
+        step: 'scan',
+        status: 'error',
+        message: 'Por favor, informe o nome do repositorio alvo (ex: Plataforma-nexa) antes de iniciar a auditoria.',
+      });
       return;
     }
 

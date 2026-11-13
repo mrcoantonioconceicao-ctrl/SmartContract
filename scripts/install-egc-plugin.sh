@@ -82,4 +82,3 @@ echo "  2. Limpar Estado:   npm run egc:clean"
 echo "  3. Servidor MCP:    npm run mcp"
 echo "  4. Iniciar IDE:     npm run dev (porta 3000)"
 echo "=============================================================================="
-EOF

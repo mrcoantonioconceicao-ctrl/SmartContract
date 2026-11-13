@@ -104,7 +104,7 @@ async function runSecurityTestSuite(): Promise<void> {
   );
 
   // Discriminador de initialize conferido
-  const initDisc = initIx.data.subarray(0, 8);
+  const initDisc = Buffer.from(initIx.data.subarray(0, 8));
   assertTest(
     initDisc.equals(INSTRUCTION_DISCRIMINATORS.initialize),
     'Discriminador da instrucao initialize confere com SHA256(global:initialize)[:8]'
@@ -166,12 +166,12 @@ async function runSecurityTestSuite(): Promise<void> {
   // Validacao de construcao da instrucao de incremento e decremento
   const incIx = client.createIncrementInstruction(authorityKeypair.publicKey, 10n);
   assertTest(
-    incIx.data.subarray(0, 8).equals(INSTRUCTION_DISCRIMINATORS.increment),
+    Buffer.from(incIx.data.subarray(0, 8)).equals(INSTRUCTION_DISCRIMINATORS.increment),
     'Instrucao increment gerada com discriminador correto de 8 bytes'
   );
   const decIx = client.createDecrementInstruction(authorityKeypair.publicKey, 5n);
   assertTest(
-    decIx.data.subarray(0, 8).equals(INSTRUCTION_DISCRIMINATORS.decrement),
+    Buffer.from(decIx.data.subarray(0, 8)).equals(INSTRUCTION_DISCRIMINATORS.decrement),
     'Instrucao decrement gerada com discriminador correto de 8 bytes'
   );
 

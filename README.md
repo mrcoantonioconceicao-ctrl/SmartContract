@@ -610,12 +610,12 @@ O repositorio implementa um padrao operacional rigoroso para prontidao instituci
 ### 14.3 Mecanismo de Auto-Cura na Esteira de CI (`.github/workflows/main.yml`)
 - Na etapa `Verify Cargo Dependencies & Lockfile`, o workflow implementa uma rotina de auto-recuperacao:
   - Executa `cargo check --locked --workspace`.
-  - Caso haja divergencia de hash ou versao decorrente de cache antigo, purga automaticamente as lockfiles (`rm -f Cargo.lock programs/*/Cargo.lock`), regenera o lockfile com o indice oficial do crates.io (`cargo generate-lockfile`) e reexecuta a checagem restrita em modo all-green.
+  - Caso haja divergencia de hash ou versao decorrente de cache antigo, purga automaticamente as lockfiles (`rm -f Cargo.lock programs/*/Cargo.lock`), regenera o lockfile com o indice oficial do crates.io (`cargo generate-lockfile`), garante compatibilidade de lockfile `version = 3` (incluindo pin de `base64ct 1.6.0` quando aplicavel) para o `cargo-build-sbf` (Rust 1.75) e reexecuta a checagem restrita em modo all-green.
 
 ### 14.4 Otimizacao de Memoria e Prevencao de OOM nos Runners
 - Variavel de ambiente `CARGO_BUILD_JOBS: 2` definida tanto no contexto global quanto em cada etapa do workflow.
-- Compilacao do Anchor configurada com `anchor build -- --jobs 2`.
-- Cache agressivo com `actions/cache@v4` cobrindo `~/.cargo/bin`, `~/.cargo/registry`, `target/` e `programs/*/target/`.
+- Instalacao oficial do toolchain Agave/Solana v1.18.26 via `https://release.anza.xyz/v1.18.26/install` e compilacao do Anchor configurada com `anchor build --no-idl -- --jobs 2`.
+- Cache agressivo com `actions/cache@v4` cobrindo `~/.cargo/bin`, `~/.cargo/registry`, `~/.cargo/advisory-db`, `target/` e `programs/*/target/`.
 
 ### 14.5 Modernizacao dos Adaptadores TypeScript & Solana Web3
 - **Resolucao Assincrona com `await`**: Abstracao `KeypairAsyncProvider` e funcao `resolveAuditorKeypair()`, garantindo que chaves privadas de auditor e provedores assincronos sejam resolvidas via `await` antes de qualquer acesso a `.publicKey`.

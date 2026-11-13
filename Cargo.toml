@@ -10,6 +10,3 @@ overflow-checks = true
 lto = "fat"
 codegen-units = 1
 opt-level = 3
-
-[workspace.lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }

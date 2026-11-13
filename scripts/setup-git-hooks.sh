@@ -39,7 +39,7 @@ echo "🔍 [EGC PRE-COMMIT] Iniciando validacoes de seguranca DevSecOps..."
 echo "----------------------------------------------------------------------"
 
 # 1. Verificar presenca de caracteres invalidos (travessoes unicode: em-dash / en-dash)
-echo "[1/4] Verificando conformidade tipografica (zero unicode dashes)..."
+echo "[1/5] Verificando conformidade tipografica (zero unicode dashes)..."
 if command -v python3 >/dev/null 2>&1; then
   python3 -c "
 import os, sys
@@ -68,7 +68,7 @@ fi
 echo "✔ Conformidade tipografica aprovada."
 
 # 2. Verificar sintaxe e estilizacao de contratos Rust (cargo check / clippy se cargo disponivel)
-echo "[2/4] Verificando sintaxe e integridade de codigo Rust..."
+echo "[2/5] Verificando sintaxe e integridade de codigo Rust..."
 if command -v cargo >/dev/null 2>&1; then
   if [ -f "Cargo.toml" ]; then
     echo "Executando cargo check..."
@@ -80,7 +80,7 @@ fi
 echo "✔ Sintaxe Rust verificada."
 
 # 3. Executar o Auditor AST EGC e Garantias On-Chain Solana
-echo "[3/4] Executando Auditor AST e verificacao de garantias Solana (Zero Mocks)..."
+echo "[3/5] Executando Auditor AST e verificacao de garantias Solana (Zero Mocks)..."
 if command -v npm >/dev/null 2>&1; then
   npm run test:mcp || { echo "Falha: O auditor AST ou MCP retornou violacao de seguranca."; exit 1; }
 fi

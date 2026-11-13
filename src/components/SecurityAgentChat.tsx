@@ -661,7 +661,7 @@ Voce pode me fazer perguntas tecnicas em linguagem natural sobre qualquer vulner
         </div>
         <div className="flex items-center justify-between mt-2 px-1 text-[10px] text-slate-400 font-mono">
           <span>Pressione Shift + Enter para quebra de linha</span>
-          <span>Modelo Ativo: gemini-3.8-flash (com contingencia determinística)</span>
+          <span>Modelo Ativo: gemini-2.5-flash (com contingencia determinística)</span>
         </div>
       </div>
     </div>

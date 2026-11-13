@@ -92,6 +92,31 @@ pub mod anchor_security_program {
 
         // Increment cumulative audit receipt counter on authority UserCounter state if provided
         if let Some(counter) = &mut ctx.accounts.counter {
+            let counter_authority = ctx
+                .accounts
+                .authority
+                .as_ref()
+                .ok_or(SecurityErrorCode::UnauthorizedAuthority)?;
+            require_keys_eq!(
+                counter.authority,
+                counter_authority.key(),
+                SecurityErrorCode::UnauthorizedAuthority
+            );
+            let expected_counter_pda = Pubkey::create_program_address(
+                &[
+                    b"counter",
+                    ctx.accounts.auditor.key().as_ref(),
+                    &[counter.bump],
+                ],
+                ctx.program_id,
+            )
+            .map_err(|_| error!(SecurityErrorCode::InvalidBumpSeed))?;
+            require_keys_eq!(
+                expected_counter_pda,
+                counter.key(),
+                SecurityErrorCode::InvalidBumpSeed
+            );
+
             counter.count = counter
                 .count
                 .checked_add(1)
@@ -165,6 +190,31 @@ pub mod anchor_security_program {
         batch.bump = ctx.bumps.batch_summary;
 
         if let Some(counter) = &mut ctx.accounts.counter {
+            let counter_authority = ctx
+                .accounts
+                .authority
+                .as_ref()
+                .ok_or(SecurityErrorCode::UnauthorizedAuthority)?;
+            require_keys_eq!(
+                counter.authority,
+                counter_authority.key(),
+                SecurityErrorCode::UnauthorizedAuthority
+            );
+            let expected_counter_pda = Pubkey::create_program_address(
+                &[
+                    b"counter",
+                    ctx.accounts.auditor.key().as_ref(),
+                    &[counter.bump],
+                ],
+                ctx.program_id,
+            )
+            .map_err(|_| error!(SecurityErrorCode::InvalidBumpSeed))?;
+            require_keys_eq!(
+                expected_counter_pda,
+                counter.key(),
+                SecurityErrorCode::InvalidBumpSeed
+            );
+
             let items_len_u64 = u64::try_from(items.len())
                 .map_err(|_| error!(SecurityErrorCode::NumericalOverflow))?;
             counter.count = counter
@@ -248,12 +298,7 @@ pub struct RecordAuditReceipt<'info> {
     pub target_program: UncheckedAccount<'info>,
 
     /// Optional cumulative counter account tracking auditor receipts
-    #[account(
-        mut,
-        seeds = [b"counter", auditor.key().as_ref()],
-        bump = counter.bump,
-        has_one = authority @ SecurityErrorCode::UnauthorizedAuthority
-    )]
+    #[account(mut)]
     pub counter: Option<Account<'info, UserCounter>>,
 
     #[account(mut)]
@@ -281,12 +326,7 @@ pub struct RecordBatchAuditReceipts<'info> {
     )]
     pub batch_summary: Account<'info, BatchAuditSummary>,
 
-    #[account(
-        mut,
-        seeds = [b"counter", auditor.key().as_ref()],
-        bump = counter.bump,
-        has_one = authority @ SecurityErrorCode::UnauthorizedAuthority
-    )]
+    #[account(mut)]
     pub counter: Option<Account<'info, UserCounter>>,
 
     #[account(mut)]

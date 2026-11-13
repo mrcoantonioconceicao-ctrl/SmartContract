@@ -307,8 +307,9 @@ Diretrizes de Resposta:
       ],
     });
 
+    const modelName = process.env.GRAPHRAG_AUDIT_MODEL || 'gemini-2.5-flash';
     const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
+      model: modelName,
       contents: formattedContents as any,
       config: {
         systemInstruction,
@@ -324,7 +325,7 @@ Diretrizes de Resposta:
 
     return {
       reply: sanitizedReply,
-      sourceModel: 'gemini-3.8-flash (via Server-Side @google/genai)',
+      sourceModel: `${modelName} (via Server-Side @google/genai)`,
       mcpToolRecommendations,
     };
   } catch (error: any) {
