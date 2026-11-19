@@ -31,9 +31,14 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 const isProduction = process.env.NODE_ENV === 'production';
 
 // Reduz limite de payload JSON para 2mb para mitigar riscos de Denial of Service (DoS)
-app.use(express.app.use(express.json({ limit: '2mb' }));
-const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100, standardHeaders: legacy true,Headers: false });
-app.use('/api/', apiLimiterapp.post('/api/egc/scan',
+app.use(express.json({ limit: '2mb' }));
+const apiLimiter = rateLimit({
+ windowMs: 15 * 60 * 1000,
+ max: 100,
+ standardHeaders: true,
+ legacyHeaders: false,
+});
+app.use('/api/', apiLimiter);
 
 // ============================================================================
 // SEGURANCA: RATE LIMITING & AUTENTICACAO OBRIGATORIA
@@ -294,7 +299,7 @@ app.get('/api/egc/physical-files', requireAdminOrMcpAuth, (_req, res) => {
 });
 
 // 7. EGC Deep Repository & AST Scan Endpoint
-app.post('/api/egc/scan', auditRateLimiter, (req, res) => {
+app.post('/api/egc/scan', apiLimiter, auditRateLimiter, (req, res) => {
   try {
     let files = req.body?.files;
     if (!files || !Array.isArray(files) || files.length === 0) {
