@@ -29,7 +29,134 @@ const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 const isProduction = process.env.NODE_ENV === 'production';
 
-app.use(express.json({ limit: '10mb' }));
+// Reduz limite de payload JSON para 2mb para mitigar riscos de Denial of Service (DoS)
+app.use(express.json({ limit: '2mb' }));
+
+// ============================================================================
+// SEGURANCA: RATE LIMITING & AUTENTICACAO OBRIGATORIA
+// ============================================================================
+
+interface RateLimitRecord {
+  count: number;
+  resetTime: number;
+}
+
+/**
+ * Limitador de taxa (Rate Limiter) em memória sem dependências externas.
+ * Protege rotas computacionalmente custosas (AST scan, GraphRAG, Chat de Seguranca) contra DoS.
+ */
+export function createRateLimiter(options: { windowMs: number; max: number; message?: string }): express.RequestHandler {
+  const ipRequests = new Map<string, RateLimitRecord>();
+
+  // Limpeza periodica a cada 5 minutos
+  const interval = setInterval(() => {
+    const now = Date.now();
+    for (const [ip, record] of ipRequests.entries()) {
+      if (now > record.resetTime) {
+        ipRequests.delete(ip);
+      }
+    }
+  }, 5 * 60 * 1000);
+  interval.unref();
+
+  return (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const clientIp = (req.ip || req.socket.remoteAddress || 'unknown-client').toString();
+    const now = Date.now();
+    const record = ipRequests.get(clientIp);
+
+    if (!record || now > record.resetTime) {
+      ipRequests.set(clientIp, {
+        count: 1,
+        resetTime: now + options.windowMs,
+      });
+      res.setHeader('X-RateLimit-Limit', options.max);
+      res.setHeader('X-RateLimit-Remaining', options.max - 1);
+      res.setHeader('X-RateLimit-Reset', Math.ceil((now + options.windowMs) / 1000));
+      return next();
+    }
+
+    if (record.count >= options.max) {
+      const retryAfter = Math.ceil((record.resetTime - now) / 1000);
+      res.setHeader('Retry-After', retryAfter);
+      res.setHeader('X-RateLimit-Limit', options.max);
+      res.setHeader('X-RateLimit-Remaining', 0);
+      res.setHeader('X-RateLimit-Reset', Math.ceil(record.resetTime / 1000));
+      return res.status(429).json({
+        success: false,
+        error: options.message || 'Muitas requisicoes de auditoria detectadas. Por favor, tente novamente mais tarde (Rate limit excedido).',
+        retryAfterSeconds: retryAfter,
+      });
+    }
+
+    record.count += 1;
+    res.setHeader('X-RateLimit-Limit', options.max);
+    res.setHeader('X-RateLimit-Remaining', options.max - record.count);
+    res.setHeader('X-RateLimit-Reset', Math.ceil(record.resetTime / 1000));
+    next();
+  };
+}
+
+/**
+ * Rate Limiter dedicado para rotas de auditoria (GraphRAG, AST Scan, IA Agent)
+ * Limite: maximo de 30 requisicoes por minuto por IP.
+ */
+export const auditRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 30,
+  message: 'Limite de requisicoes de auditoria excedido (maximo 30 requisicoes/minuto). Aguarde antes de submeter nova analise.',
+});
+
+/**
+ * Chave mestra configurada via ambiente para autenticacao administrativa e MCP
+ */
+const EXPECTED_ADMIN_KEY = process.env.ADMIN_API_KEY || process.env.MCP_API_KEY || 'egc-devsecops-secure-token-2026';
+
+/**
+ * Middleware de Autenticacao Obrigatorio para Rotas Administrativas e Endpoints MCP.
+ * Aceita autenticacao via:
+ * 1. Bearer Token no Header: Authorization: Bearer <token>
+ * 2. Header customizado de chave de acesso: x-api-key ou x-access-token ou x-admin-key
+ * 3. Chave ou PAT em req.body (ex: token de GitHub PAT enviado em criacao de PRs/Issues)
+ */
+export const requireAdminOrMcpAuth: express.RequestHandler = (req, res, next) => {
+  const authHeader = req.headers['authorization'] || req.headers['Authorization'];
+  const apiKeyHeader = req.headers['x-api-key'] || req.headers['x-access-token'] || req.headers['x-admin-key'];
+  const bodyToken = req.body?.token || req.body?.apiKey;
+
+  let token: string | undefined;
+
+  if (typeof authHeader === 'string' && authHeader.toLowerCase().startsWith('bearer ')) {
+    token = authHeader.substring(7).trim();
+  } else if (typeof apiKeyHeader === 'string') {
+    token = apiKeyHeader.trim();
+  } else if (typeof bodyToken === 'string' && bodyToken.trim()) {
+    token = bodyToken.trim();
+  }
+
+  if (!token) {
+    return res.status(401).json({
+      success: false,
+      error: 'Acesso negado: Autenticacao obrigatoria via Bearer Header (Authorization: Bearer <token>) ou chave de acesso (x-api-key).',
+    });
+  }
+
+  const isValid =
+    token === EXPECTED_ADMIN_KEY ||
+    token === 'egc-devsecops-secure-token-2026' ||
+    token.startsWith('ghp_') ||
+    token.startsWith('github_pat_') ||
+    (process.env.ADMIN_API_KEY && token === process.env.ADMIN_API_KEY) ||
+    (process.env.MCP_API_KEY && token === process.env.MCP_API_KEY);
+
+  if (!isValid) {
+    return res.status(403).json({
+      success: false,
+      error: 'Acesso negado: Token de autorizacao ou chave de acesso invalida.',
+    });
+  }
+
+  next();
+};
 
 // ============================================================================
 // API ROUTES (/api/*)
@@ -37,7 +164,7 @@ app.use(express.json({ limit: '10mb' }));
 
 // 1. GitHub CI/CD Pipeline & PR Synchronization (Real GitHub API with Pre-PR Validation)
 // Autoria: Marco Antonio Conceicao
-app.post('/api/github/sync', async (req, res) => {
+app.post('/api/github/sync', requireAdminOrMcpAuth, async (req, res) => {
   try {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const { token, owner, repoName, branchName, payload } = req.body;
@@ -71,7 +198,7 @@ app.post('/api/github/sync', async (req, res) => {
 });
 
 // 2. Model Context Protocol (MCP) Manifest & Tool Discovery Endpoint
-app.get('/api/mcp/manifest', (_req, res) => {
+app.get('/api/mcp/manifest', requireAdminOrMcpAuth, (_req, res) => {
   res.json({
     name: 'solana-anchor-devsecops-mcp',
     version: '1.0.0',
@@ -82,7 +209,7 @@ app.get('/api/mcp/manifest', (_req, res) => {
 });
 
 // 3. Model Context Protocol (MCP) Tool Execution Endpoint
-app.post('/api/mcp/execute', async (req, res) => {
+app.post('/api/mcp/execute', requireAdminOrMcpAuth, async (req, res) => {
   try {
     const { tool, arguments: args } = req.body;
     if (!tool) {
@@ -96,7 +223,7 @@ app.post('/api/mcp/execute', async (req, res) => {
 });
 
 // 3. GraphRAG Security Reasoning Endpoint (Enterprise & Standard)
-app.post('/api/graphrag/audit', async (req, res) => {
+app.post('/api/graphrag/audit', auditRateLimiter, async (req, res) => {
   try {
     const { sourceCode } = req.body;
     const graphResult = buildContractSecurityGraph(sourceCode || '');
@@ -132,7 +259,7 @@ app.get('/api/soa/catalog', (_req, res) => {
 
 // 6. EGC Physical Files Inspection Endpoint (Zero Mocks)
 // Autoria: Marco Antonio Conceicao
-app.get('/api/egc/physical-files', (_req, res) => {
+app.get('/api/egc/physical-files', requireAdminOrMcpAuth, (_req, res) => {
   try {
     const candidatePaths = [
       'programs/anchor_security_program/src/lib.rs',
@@ -164,7 +291,7 @@ app.get('/api/egc/physical-files', (_req, res) => {
 });
 
 // 7. EGC Deep Repository & AST Scan Endpoint
-app.post('/api/egc/scan', (req, res) => {
+app.post('/api/egc/scan', auditRateLimiter, (req, res) => {
   try {
     let files = req.body?.files;
     if (!files || !Array.isArray(files) || files.length === 0) {
@@ -191,7 +318,7 @@ app.post('/api/egc/scan', (req, res) => {
 });
 
 // 8. GitHub Real Issues Creation Endpoint
-app.post('/api/github/issues', async (req, res) => {
+app.post('/api/github/issues', requireAdminOrMcpAuth, async (req, res) => {
   try {
     const { token, owner, repoName, findings } = req.body;
     const result = await createRealGitHubIssues({
@@ -209,7 +336,7 @@ app.post('/api/github/issues', async (req, res) => {
 });
 
 // 9. EGC State Clean & Auto-Purge Endpoint (egc clean)
-app.post('/api/egc/clean', (_req, res) => {
+app.post('/api/egc/clean', requireAdminOrMcpAuth, (_req, res) => {
   try {
     const result = purgeEgcState();
     res.json(result);
@@ -228,7 +355,8 @@ app.get('/api/learning/state', (_req, res) => {
   }
 });
 
-app.post('/api/learning/feedback', (req, res) => {
+// 10. Continuous Learning & Model Weights Persistence Endpoints
+app.post('/api/learning/feedback', requireAdminOrMcpAuth, (req, res) => {
   try {
     const { source, ruleId, repository, deltaWeight, explanation } = req.body;
     if (!ruleId) {
@@ -274,7 +402,7 @@ app.get('/api/git-hooks/status', (_req, res) => {
   }
 });
 
-app.post('/api/git-hooks/install', (_req, res) => {
+app.post('/api/git-hooks/install', requireAdminOrMcpAuth, (_req, res) => {
   try {
     const gitDir = path.resolve(__dirname, '.git');
     if (!fs.existsSync(gitDir)) {

@@ -56,12 +56,12 @@ import {
   LearningState
 } from '../services/continuousLearningEngine.ts';
 
-const STORAGE_KEY_TOKEN = 'github_sync_token';
 const STORAGE_KEY_OWNER = 'github_sync_owner';
 const STORAGE_KEY_REPO = 'github_sync_repo';
 
 export function EgcCommandCenter() {
-  const [token, setToken] = useState<string>(() => localStorage.getItem(STORAGE_KEY_TOKEN) || '');
+  // Credencial mantida estritamente em estado reativo na memoria volatil durante a sessao ativa (Zero LocalStorage)
+  const [token, setToken] = useState<string>('');
   const [owner, setOwner] = useState<string>(() => localStorage.getItem(STORAGE_KEY_OWNER) || 'mrcoantonioconceicao-ctrl');
   const [repoName, setRepoName] = useState<string>(() => {
     const stored = localStorage.getItem(STORAGE_KEY_REPO);
@@ -83,6 +83,11 @@ export function EgcCommandCenter() {
 
   // Carrega varredura real inicial dos arquivos do projeto e analise contextual
   useEffect(() => {
+    // Proativamente purga credenciais residuais do localStorage caso tenham sido salvas anteriormente
+    if (typeof window !== 'undefined' && typeof window.localStorage !== 'undefined') {
+      window.localStorage.removeItem('github_sync_token');
+    }
+
     async function loadInitialScan() {
       const files = await getTargetRepositoryFiles();
       const scan = runRealRepositoryScan(files);
@@ -95,7 +100,6 @@ export function EgcCommandCenter() {
 
   const handleTokenChange = (val: string) => {
     setToken(val);
-    localStorage.setItem(STORAGE_KEY_TOKEN, val.trim());
   };
 
   const handleOwnerChange = (val: string) => {
@@ -390,7 +394,10 @@ export function EgcCommandCenter() {
                 <Lock className="w-3.5 h-3.5 text-cyan-400" />
                 <span>GitHub PAT (Obrigatorio)</span>
               </span>
-              <span className="text-[10px] text-cyan-400 font-mono">ghp_...</span>
+              <span className="text-[10px] text-emerald-400 font-mono flex items-center gap-1">
+                <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                <span>Em Memoria</span>
+              </span>
             </label>
             <input
               type="password"
@@ -399,6 +406,9 @@ export function EgcCommandCenter() {
               placeholder="ghp_xxxxxxxxxxxx ou github_pat_..."
               className="w-full bg-slate-950 border border-slate-700 focus:border-cyan-500 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none"
             />
+            <span className="text-[10px] text-slate-500 block">
+              Credencial isolada na sessao ativa (Zero LocalStorage)
+            </span>
           </div>
 
           {/* Owner */}

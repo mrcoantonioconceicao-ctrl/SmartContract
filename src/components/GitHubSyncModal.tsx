@@ -40,7 +40,6 @@ type SyncStep = 'idle' | 'linting' | 'forking' | 'branching' | 'committing' | 'c
 
 const STORAGE_KEY_OWNER = 'github_sync_owner';
 const STORAGE_KEY_REPO = 'github_sync_repo';
-const STORAGE_KEY_TOKEN = 'github_sync_token';
 
 export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSyncModalProps) {
   // Initialize from localStorage or defaults
@@ -52,9 +51,8 @@ export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSync
     return localStorage.getItem(STORAGE_KEY_REPO) || 'SlipPay2';
   });
 
-  const [token, setToken] = useState<string>(() => {
-    return localStorage.getItem(STORAGE_KEY_TOKEN) || '';
-  });
+  // Credencial mantida estritamente em memoria reativa durante a sessao ativa (Zero LocalStorage)
+  const [token, setToken] = useState<string>('');
 
   const [branchName, setBranchName] = useState<string>(pipelinePayload.targetBranch);
   const [syncStep, setSyncStep] = useState<SyncStep>('idle');
@@ -71,8 +69,12 @@ export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSync
   const [hookActionLoading, setHookActionLoading] = useState<boolean>(false);
   const [hookFeedbackMessage, setHookFeedbackMessage] = useState<string>('');
 
-  // Fetch hook status on mount
+  // Fetch hook status on mount & purge any residual tokens from localStorage
   useEffect(() => {
+    if (typeof window !== 'undefined' && typeof window.localStorage !== 'undefined') {
+      window.localStorage.removeItem('github_sync_token');
+    }
+
     let isMounted = true;
     async function checkHookStatus() {
       try {
@@ -150,7 +152,6 @@ export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSync
 
   const handleTokenChange = (val: string) => {
     setToken(val);
-    localStorage.setItem(STORAGE_KEY_TOKEN, val);
   };
 
   if (!isOpen) return null;
@@ -199,7 +200,6 @@ export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSync
 
     localStorage.setItem(STORAGE_KEY_OWNER, cleanOwner);
     localStorage.setItem(STORAGE_KEY_REPO, cleanRepo);
-    localStorage.setItem(STORAGE_KEY_TOKEN, cleanToken);
 
     setErrorMessage('');
     setPrUrl('');
@@ -504,7 +504,10 @@ export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSync
                     <span>GitHub Personal Access Token:</span>
                     <span className="text-[10px] text-rose-400 font-bold tracking-wider uppercase ml-1">(Obrigatório)</span>
                   </label>
-                  <span className="text-[10px] text-slate-400">Permissões de repo / PR</span>
+                  <span className="text-[10px] text-emerald-400 flex items-center gap-1 font-mono font-medium">
+                    <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                    <span>Memória Volátil</span>
+                  </span>
                 </div>
                 <input
                   type="password"
@@ -514,6 +517,9 @@ export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSync
                   className={`w-full bg-slate-950 border ${!cleanToken ? 'border-rose-900/60 focus:border-rose-500' : 'border-slate-800 focus:border-purple-500'} rounded-lg px-3 py-2 text-slate-300 focus:outline-none transition-colors`}
                   required
                 />
+                <span className="text-[10px] text-slate-500 mt-1 block">
+                  Credencial isolada estritamente na memória da sessão ativa (Zero LocalStorage).
+                </span>
                 {!cleanToken && (
                   <p className="text-[10px] text-rose-400/90 mt-1 flex items-center gap-1">
                     <AlertCircle className="w-3 h-3 shrink-0" />
