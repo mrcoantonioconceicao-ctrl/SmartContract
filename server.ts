@@ -4,6 +4,7 @@
  */
 
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -30,7 +31,9 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 const isProduction = process.env.NODE_ENV === 'production';
 
 // Reduz limite de payload JSON para 2mb para mitigar riscos de Denial of Service (DoS)
-app.use(express.json({ limit: '2mb' }));
+app.use(express.app.use(express.json({ limit: '2mb' }));
+const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100, standardHeaders: legacy true,Headers: false });
+app.use('/api/', apiLimiterapp.post('/api/egc/scan',
 
 // ============================================================================
 // SEGURANCA: RATE LIMITING & AUTENTICACAO OBRIGATORIA
@@ -318,7 +321,7 @@ app.post('/api/egc/scan', auditRateLimiter, (req, res) => {
 });
 
 // 8. GitHub Real Issues Creation Endpoint
-app.post('/api/github/issues', requireAdminOrMcpAuth, async (req, res) => {
+app.post('/api/github/issues', apiLimiter, requireAdminOrMcpAuth, async (req, res) => {
   try {
     const { token, owner, repoName, findings } = req.body;
     const result = await createRealGitHubIssues({
@@ -336,7 +339,7 @@ app.post('/api/github/issues', requireAdminOrMcpAuth, async (req, res) => {
 });
 
 // 9. EGC State Clean & Auto-Purge Endpoint (egc clean)
-app.post('/api/egc/clean', requireAdminOrMcpAuth, (_req, res) => {
+app.post('/api/egc/clean', apiLimiter, requireAdminOrMcpAuth, (_req, res) => {
   try {
     const result = purgeEgcState();
     res.json(result);
