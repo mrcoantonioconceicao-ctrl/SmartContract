@@ -24,7 +24,7 @@
   "dependencies": {
     "@google/genai": "^2.4.0",
     "@modelcontextprotocol/sdk": "^1.32.1",
-    "@solana/web3.js": "^1.99.0",
+    "@solana/web3.js": "^3.1.1",
     "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-react": "^6.1.1",
     "buffer": "^6.0.3",
