@@ -22,7 +22,7 @@
     "hooks:setup": "bash scripts/setup-git-hooks.sh"
   },
   "dependencies": {
-    "@google/genai": "^2.4.0",
+    "@google/genai": "^3.6.1",
     "@modelcontextprotocol/sdk": "^1.32.1",
     "@solana/web3.js": "^1.99.0",
     "@tailwindcss/vite": "^4.3.3",
