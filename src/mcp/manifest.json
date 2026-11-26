@@ -3,11 +3,15 @@
   "name": "solana-anchor-devsecops-mcp",
   "displayName": "Solana Anchor DevSecOps, AST & GraphRAG MCP Plugin",
   "version": "1.0.0",
+  "contractVersion": "v1",
   "protocolVersion": "2024-11-05",
-  "description": "Model Context Protocol (MCP) server for Solana Anchor DevSecOps IDE, integrating Extended Global Context (EGC) with secure AST analysis, contract generation, and manual-only GitHub PR deployment.",
+  "description": "MCP and EGC command catalog generated from the v1 runtime contract.",
   "author": {
     "name": "Solana Anchor DevSecOps Core Team",
-    "maintainers": ["mrcoantonioconceicao", "Felipe Marzock"]
+    "maintainers": [
+      "mrcoantonioconceicao",
+      "Felipe Marzock"
+    ]
   },
   "runtime": {
     "type": "node",
@@ -22,284 +26,584 @@
   },
   "tools": [
     {
+      "name": "egc_contract_catalog",
+      "displayName": "egc contract catalog",
+      "description": "Returns the versioned EGC command catalog and JSON Schemas.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "generate_anchor_contract",
-      "displayName": "Generate Secure Anchor Contract",
-      "description": "Generates production-ready, secure Rust/Anchor smart contract code with audited PDA derivations, checked arithmetic protection (checked_add/checked_sub), authority authorization guards (has_one = authority), exact byte memory sizing, and rent-exempt lamport calculations.",
+      "displayName": "generate anchor contract",
+      "description": "Generates an Anchor contract and returns its source, byte sizing, guards, and AST audit preview.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "programName": {
             "type": "string",
-            "description": "Anchor program snake_case identifier (e.g. solana_sandbox_counter, slippay_escrow)",
-            "default": "solana_sandbox_counter"
+            "pattern": "^[a-z][a-z0-9_]{1,63}$"
           },
           "accountName": {
             "type": "string",
-            "description": "Anchor PascalCase PDA state account struct name (e.g. UserCounter, EscrowVault)",
-            "default": "UserCounter"
+            "pattern": "^[A-Z][A-Za-z0-9]{1,63}$"
           },
           "pdaPrefix": {
             "type": "string",
-            "description": "Deterministic seed prefix for PDA account derivation (e.g. counter, vault)",
-            "default": "counter"
+            "minLength": 1,
+            "maxLength": 32
           },
           "hasCheckedMath": {
-            "type": "boolean",
-            "description": "Enforce checked arithmetic with custom error reverts on overflow/underflow",
-            "default": true
+            "type": "boolean"
           },
           "hasSignerCheck": {
-            "type": "boolean",
-            "description": "Enforce Signer<'info> and has_one constraint for owner authorization",
-            "default": true
+            "type": "boolean"
           },
           "includeCloseInstruction": {
-            "type": "boolean",
-            "description": "Generate safe close instruction with rent lamports refund to authority",
-            "default": true
+            "type": "boolean"
           }
-        }
+        },
+        "additionalProperties": false
       }
     },
     {
       "name": "audit_rust_ast",
-      "displayName": "Audit Rust AST Security",
-      "description": "Performs deep static AST security analysis on Solana Anchor Rust code to detect missing signers, unconstrained accounts, arithmetic overflows, missing bump validations, and rent-exempt memory layout mismatches.",
+      "displayName": "audit rust ast",
+      "description": "Audits supplied Rust/Anchor source and reports rule counts, findings, and account/PDA checks.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "sourceCode": {
             "type": "string",
-            "description": "Rust/Anchor smart contract source code to analyze statically."
+            "minLength": 1,
+            "maxLength": 200000
           }
         },
-        "required": ["sourceCode"]
+        "required": [
+          "sourceCode"
+        ],
+        "additionalProperties": false
       }
     },
     {
       "name": "create_github_pr",
-      "displayName": "Create GitHub Pull Request (Manual Merge Only)",
-      "description": "Creates and opens a Pull Request on a remote GitHub repository with the audited Anchor smart contract and DevSecOps CI workflow. Strictly enforces a manual-only merge policy (auto-merge disabled) and requires a valid GitHub Personal Access Token (PAT).",
+      "displayName": "create github pr",
+      "description": "Creates a GitHub pull request with manual merge only; the PAT is accepted only as input and is never returned.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "token": {
             "type": "string",
-            "description": "GitHub Personal Access Token (PAT, e.g. ghp_... or github_pat_...) with repo write permissions (Mandatory)."
+            "minLength": 1,
+            "maxLength": 4096,
+            "pattern": "\\S"
           },
           "owner": {
             "type": "string",
-            "description": "GitHub username or organization (e.g. mrcoantonioconceicao-ctrl) (Mandatory)."
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "\\S"
           },
           "repoName": {
             "type": "string",
-            "description": "Target repository name (e.g. SlipPay2, solana-anchor-devsecops) (Mandatory)."
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "\\S"
           },
           "branchName": {
             "type": "string",
-            "description": "Git branch name for the Pull Request. Default is auto-generated devsecops branch."
+            "maxLength": 255
           },
           "title": {
             "type": "string",
-            "description": "Pull Request title."
+            "maxLength": 256
           },
           "body": {
             "type": "string",
-            "description": "Pull Request markdown description."
+            "maxLength": 50000
           },
           "contractCode": {
             "type": "string",
-            "description": "Optional Rust/Anchor contract code to include in PR documentation."
+            "maxLength": 200000
           }
         },
-        "required": ["token", "owner", "repoName"]
+        "required": [
+          "token",
+          "owner",
+          "repoName"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "audit_anchor_ast",
+      "displayName": "audit anchor ast",
+      "description": "Compatibility alias for audit_rust_ast.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "sourceCode": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200000
+          }
+        },
+        "required": [
+          "sourceCode"
+        ],
+        "additionalProperties": false
       }
     },
     {
       "name": "run_property_fuzzer",
-      "displayName": "Run Invariant Property Fuzzer",
-      "description": "Generates and runs up to 20,000 property-based fuzz test vectors verifying Solana SVM invariants (checked math, signer spoofing, rent drainage).",
+      "displayName": "run property fuzzer",
+      "description": "Runs the local property-based model and reports executed vectors, invariant outcomes, and duration.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "vectorCount": {
-            "type": "number",
-            "description": "Number of fuzz vectors to evaluate (e.g. 10000, max 20000)",
-            "default": 10000
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20000
           },
           "hasCheckedMath": {
-            "type": "boolean",
-            "description": "Whether checked arithmetic is enabled",
-            "default": true
+            "type": "boolean"
           },
           "hasSignerCheck": {
-            "type": "boolean",
-            "description": "Whether signer check constraint is enforced",
-            "default": true
+            "type": "boolean"
           }
-        }
+        },
+        "additionalProperties": false
       }
     },
     {
       "name": "derive_pda_spec",
-      "displayName": "Derive Solana PDA Specification",
-      "description": "Calculates deterministic PDA address, canonical bump, and verifies exact 49-byte rent-exempt lamport requirement.",
+      "displayName": "derive pda spec",
+      "description": "Derives the PDA address and canonical bump locally; does not quote an RPC rent balance.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "authorityPubkey": {
             "type": "string",
-            "description": "Wallet public key of authority"
+            "minLength": 32,
+            "maxLength": 44,
+            "pattern": "^[1-9A-HJ-NP-Za-km-z]+$"
           },
           "seedPrefix": {
             "type": "string",
-            "description": "Seed string prefix, default 'counter'"
+            "pattern": "^[\\x20-\\x7E]{1,32}$"
           }
         },
-        "required": ["authorityPubkey"]
+        "required": [
+          "authorityPubkey"
+        ],
+        "additionalProperties": false
       }
     },
     {
       "name": "query_graphrag_security",
-      "displayName": "Query GraphRAG Security Graph",
-      "description": "Queries GraphRAG cross-instruction dependency graph for Solana vulnerabilities and attack path reasoning.",
+      "displayName": "query graphrag security",
+      "description": "Returns GraphRAG status, score, community, paths, and graph counts when source is supplied.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "instructionTarget": {
             "type": "string",
-            "description": "Instruction name (e.g. initialize, increment, close)"
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "\\S"
           },
-          "attackVector": {
+          "sourceCode": {
             "type": "string",
-            "description": "Attack vector to inspect (e.g. signer_spoofing, integer_overflow, rent_drainage)"
+            "maxLength": 200000
           }
         },
-        "required": ["instructionTarget"]
+        "required": [
+          "instructionTarget"
+        ],
+        "additionalProperties": false
       }
     },
     {
       "name": "scan_repository_ast",
-      "displayName": "Deep Repository AST Scanner",
-      "description": "Deep AST and physical file scanner for Solana Anchor smart contracts and dApps (Zero Mocks). Audits deterministic PDAs, 49B rent-exempt memory, checked arithmetic, and signers.",
+      "displayName": "scan repository ast",
+      "description": "Scans provided files or the repository and reports measured file/line counts, findings, and Solana guarantees.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "files": {
+            "maxItems": 200,
             "type": "array",
-            "description": "Optional list of files to scan"
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 512,
+                  "pattern": "\\S"
+                },
+                "content": {
+                  "type": "string",
+                  "maxLength": 1000000
+                }
+              },
+              "required": [
+                "path",
+                "content"
+              ],
+              "additionalProperties": false
+            }
           }
-        }
+        },
+        "additionalProperties": false
       }
     },
     {
       "name": "create_github_issues",
-      "displayName": "Create GitHub Security Issues",
-      "description": "Creates real GitHub issues on remote repository via API based on AST and security audit findings.",
+      "displayName": "create github issues",
+      "description": "Creates GitHub issues from supplied scan findings; the PAT is never included in results.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "token": {
             "type": "string",
-            "description": "GitHub Personal Access Token (PAT)"
+            "minLength": 1,
+            "maxLength": 4096,
+            "pattern": "\\S"
           },
           "owner": {
             "type": "string",
-            "description": "Repository owner"
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "\\S"
           },
           "repoName": {
             "type": "string",
-            "description": "Repository name"
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "\\S"
+          },
+          "findings": {
+            "maxItems": 2000,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "ruleId": {
+                  "type": "string"
+                },
+                "category": {
+                  "type": "string",
+                  "enum": [
+                    "PDA_DERIVATION",
+                    "RENT_EXEMPT_MEMORY",
+                    "ARITHMETIC_OVERFLOW",
+                    "SIGNER_VALIDATION"
+                  ]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "CRITICAL",
+                    "HIGH",
+                    "MEDIUM",
+                    "LOW",
+                    "PASS"
+                  ]
+                },
+                "file": {
+                  "type": "string"
+                },
+                "line": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "snippet": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "recommendation": {
+                  "type": "string"
+                },
+                "remediationCode": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "ruleId",
+                "category",
+                "title",
+                "severity",
+                "file",
+                "line",
+                "description",
+                "recommendation"
+              ],
+              "additionalProperties": false
+            }
           }
         },
-        "required": ["token", "owner", "repoName"]
+        "required": [
+          "token",
+          "owner",
+          "repoName"
+        ],
+        "additionalProperties": false
       }
     },
     {
       "name": "execute_egc_one_click",
-      "displayName": "Execute EGC One-Click Flow",
-      "description": "Executes unified 1-click EGC flow: deep AST scan, GitHub issue creation, PR opening with manual merge policy, and auditable PDF report generation.",
+      "displayName": "execute egc one click",
+      "description": "Runs the implemented scan, issue creation, PR dispatch, PDF generation, and state cleanup flow.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "token": {
             "type": "string",
-            "description": "GitHub Personal Access Token (PAT)"
+            "minLength": 1,
+            "maxLength": 4096,
+            "pattern": "\\S"
           },
           "owner": {
             "type": "string",
-            "description": "Repository owner"
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "\\S"
           },
           "repoName": {
             "type": "string",
-            "description": "Repository name"
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "\\S"
           },
           "branchName": {
             "type": "string",
-            "description": "Target branch name"
+            "maxLength": 255
           }
         },
-        "required": ["token", "owner", "repoName"]
+        "required": [
+          "token",
+          "owner",
+          "repoName"
+        ],
+        "additionalProperties": false
       }
     },
     {
       "name": "analyze_contextual_architecture",
-      "displayName": "Analyze Contextual Architecture (GraphRAG, DDD, SOA & AST)",
-      "description": "Performs mandatory contextual analysis: maps GraphRAG semantic dependencies, DDD bounded context invariants, SOA services and AST.",
+      "displayName": "analyze contextual architecture",
+      "description": "Returns measured GraphRAG, DDD invariant, file, and SOA counts for supplied or repository files.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "files": {
+            "maxItems": 200,
             "type": "array",
-            "description": "Optional list of physical repository files to analyze"
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 512,
+                  "pattern": "\\S"
+                },
+                "content": {
+                  "type": "string",
+                  "maxLength": 1000000
+                }
+              },
+              "required": [
+                "path",
+                "content"
+              ],
+              "additionalProperties": false
+            }
           }
-        }
+        },
+        "additionalProperties": false
       }
     },
     {
       "name": "run_anchor_lint",
-      "displayName": "Run Solana Anchor Lint (anchor-lint)",
-      "description": "Runs static anchor-lint to detect Solana anti-patterns (signer auth, has_one, checked arithmetic, PDA seeds) automatically before AST analysis.",
+      "displayName": "run anchor lint",
+      "description": "Runs the Anchor static linter over supplied or repository files and returns issue counts.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "files": {
+            "maxItems": 200,
             "type": "array",
-            "description": "Optional list of physical repository files to lint"
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 512,
+                  "pattern": "\\S"
+                },
+                "content": {
+                  "type": "string",
+                  "maxLength": 1000000
+                }
+              },
+              "required": [
+                "path",
+                "content"
+              ],
+              "additionalProperties": false
+            }
           }
-        }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "run_security_lint",
+      "displayName": "run security lint",
+      "description": "Runs the existing Clippy and Web3 security rule model using its active local profile.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "files": {
+            "maxItems": 200,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 512,
+                  "pattern": "\\S"
+                },
+                "content": {
+                  "type": "string",
+                  "maxLength": 1000000
+                }
+              },
+              "required": [
+                "path",
+                "content"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
       }
     },
     {
       "name": "egc_clean_state",
-      "displayName": "EGC State Clean & Auto-Purge",
-      "description": "Executes mandatory state cleanup (egc clean / auto-purge): clears in-memory active session cache, unlinks ~/.egc/state, and resets previous repository context for the next target.",
+      "displayName": "egc clean state",
+      "description": "Purges the local EGC session state and returns the actual cleanup result.",
       "inputSchema": {
         "type": "object",
-        "properties": {}
+        "properties": {},
+        "additionalProperties": false
       }
     },
     {
       "name": "record_batch_audit_receipts",
-      "displayName": "Record Batch Audit Receipts On-Chain",
-      "description": "Records and attests multiple audit reports on-chain in an atomic Solana batch transaction (up to 5 items), reducing CU consumption by >60% and creating immutable PDA receipts.",
+      "displayName": "record batch audit receipts",
+      "description": "Builds a local batch receipt summary. This adapter has no signing-key input and does not submit a Solana transaction.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "batchId": {
             "type": "string",
-            "description": "Optional 32-byte batch identifier or hash hex string"
+            "minLength": 1,
+            "maxLength": 128
           },
           "auditorPubkey": {
             "type": "string",
-            "description": "Auditor wallet public key"
+            "minLength": 32,
+            "maxLength": 44,
+            "pattern": "^[1-9A-HJ-NP-Za-km-z]+$"
           },
           "items": {
+            "minItems": 1,
+            "maxItems": 5,
             "type": "array",
-            "description": "List of audit reports (max 5 items) {targetProgram, auditHash, riskLevel, findingsCount, securityScore}"
+            "items": {
+              "type": "object",
+              "properties": {
+                "targetProgram": {
+                  "type": "string",
+                  "minLength": 32,
+                  "maxLength": 44,
+                  "pattern": "^[1-9A-HJ-NP-Za-km-z]+$"
+                },
+                "auditHash": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "riskLevel": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "const": 0
+                    },
+                    {
+                      "type": "number",
+                      "const": 1
+                    },
+                    {
+                      "type": "number",
+                      "const": 2
+                    },
+                    {
+                      "type": "number",
+                      "const": 3
+                    },
+                    {
+                      "type": "number",
+                      "const": 4
+                    }
+                  ]
+                },
+                "findingsCount": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295
+                },
+                "securityScore": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                }
+              },
+              "required": [
+                "targetProgram",
+                "auditHash",
+                "riskLevel",
+                "findingsCount",
+                "securityScore"
+              ],
+              "additionalProperties": false
+            }
           }
         },
-        "required": ["items"]
+        "required": [
+          "auditorPubkey",
+          "items"
+        ],
+        "additionalProperties": false
       }
     }
   ]

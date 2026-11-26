@@ -1,6 +1,5 @@
 /**
- * BPMN 2.0 Process Orchestrator & OMG XML Generator for Solana Anchor DevSecOps
- * Supports visual workflow diagramming and standards-compliant OMG BPMN 2.0 XML export
+ * BPMN 2.0 model of the implemented EGC one-click flow.
  */
 
 export interface BpmnTask {
@@ -8,127 +7,186 @@ export interface BpmnTask {
   name: string;
   type: 'startEvent' | 'userTask' | 'serviceTask' | 'exclusiveGateway' | 'endEvent';
   assignee?: string;
-  status: 'COMPLETED' | 'IN_PROGRESS' | 'PENDING' | 'PASSED';
+  status: 'NOT_EXECUTED';
   description: string;
 }
 
 export const ANCHOR_DEVSECOPS_BPMN_TASKS: BpmnTask[] = [
-  { id: 'start_1', name: 'Início do Ciclo DevSecOps', type: 'startEvent', status: 'COMPLETED', description: 'Gatilho de auditoria disparado no repositório' },
-  { id: 'task_code', name: 'Edição de Contrato Rust/Anchor', type: 'userTask', assignee: 'Developer', status: 'COMPLETED', description: 'Desenvolvimento com macros seguras e PDA' },
-  { id: 'task_ast', name: 'Auditoria Estática de AST', type: 'serviceTask', assignee: 'AST Engine', status: 'COMPLETED', description: 'Inspeção de signers, has_one e 49B de memória' },
-  { id: 'gw_ast_eval', name: 'Score AST >= 85?', type: 'exclusiveGateway', status: 'PASSED', description: 'Portão condicional de qualidade de código' },
-  { id: 'task_fuzz', name: 'Fuzzing de 10.000 Vetores', type: 'serviceTask', assignee: 'SVM Fuzzer', status: 'COMPLETED', description: 'Testes de u64::MAX, underflow e invariantes' },
-  { id: 'gw_fuzz_eval', name: 'Violações == 0?', type: 'exclusiveGateway', status: 'PASSED', description: 'Verificação de integridade de invariantes' },
-  { id: 'task_graphrag', name: 'Análise GraphRAG & Grafo de Ataque', type: 'serviceTask', assignee: 'Gemini AI', status: 'COMPLETED', description: 'Mapeamento de vetores de exploração cross-instruction' },
-  { id: 'task_pr', name: 'Geração de Commit e Pull Request Atómico', type: 'serviceTask', assignee: 'GitHub Pipeline', status: 'COMPLETED', description: 'Abertura de PR com checklist de segurança aprovado' },
-  { id: 'end_1', name: 'Contrato Verificado & Pronto para Deploy', type: 'endEvent', status: 'COMPLETED', description: 'Entrega contínua certificada no Devnet' },
+  {
+    id: 'start_1',
+    name: 'Início da solicitação EGC',
+    type: 'startEvent',
+    status: 'NOT_EXECUTED',
+    description: 'Recebe o comando e os parâmetros fornecidos pelo adaptador de transporte.',
+  },
+  {
+    id: 'task_input',
+    name: 'Informar repositório e credencial GitHub',
+    type: 'userTask',
+    assignee: 'Caller',
+    status: 'NOT_EXECUTED',
+    description: 'Fornece owner, repoName e PAT; a credencial não faz parte das respostas do contrato.',
+  },
+  {
+    id: 'task_validate',
+    name: 'Validar parâmetros e isolamento do alvo',
+    type: 'serviceTask',
+    assignee: 'EGC Command Center',
+    status: 'NOT_EXECUTED',
+    description: 'Valida owner/repo antes de registrar sessão ou iniciar a varredura.',
+  },
+  {
+    id: 'gw_target_valid',
+    name: 'Parâmetros válidos?',
+    type: 'exclusiveGateway',
+    status: 'NOT_EXECUTED',
+    description: 'Alvos inválidos encerram o fluxo com erro antes de qualquer chamada ao GitHub.',
+  },
+  {
+    id: 'task_scan',
+    name: 'Executar scan AST e contexto arquitetural',
+    type: 'serviceTask',
+    assignee: 'Repository Scanner / GraphRAG / DDD',
+    status: 'NOT_EXECUTED',
+    description: 'Inspeciona arquivos disponíveis e produz findings, resumo de scan e contexto.',
+  },
+  {
+    id: 'task_issues',
+    name: 'Criar issues no GitHub',
+    type: 'serviceTask',
+    assignee: 'GitHub Issues API',
+    status: 'NOT_EXECUTED',
+    description: 'Registra resultados e acumula falhas; a falha não impede a tentativa de PR.',
+  },
+  {
+    id: 'task_pr',
+    name: 'Criar Pull Request com merge manual',
+    type: 'serviceTask',
+    assignee: 'GitHub PR Service',
+    status: 'NOT_EXECUTED',
+    description: 'Envia os arquivos selecionados e abre PR sem ativar auto-merge.',
+  },
+  {
+    id: 'gw_pr_success',
+    name: 'Pull Request criado?',
+    type: 'exclusiveGateway',
+    status: 'NOT_EXECUTED',
+    description: 'Somente o sucesso do PR aciona a limpeza imediata do estado EGC.',
+  },
+  {
+    id: 'task_cleanup',
+    name: 'Limpar estado após PR criado',
+    type: 'serviceTask',
+    assignee: 'EGC State Manager',
+    status: 'NOT_EXECUTED',
+    description: 'Executa purge do estado local depois de confirmar a criação do PR.',
+  },
+  {
+    id: 'task_pdf',
+    name: 'Gerar relatório PDF auditável',
+    type: 'serviceTask',
+    assignee: 'PDF Report Service',
+    status: 'NOT_EXECUTED',
+    description: 'Gera evidência a partir do scan, issues e resultado do PR; falhas são acumuladas.',
+  },
+  {
+    id: 'end_success',
+    name: 'Devolver resultado e evidências',
+    type: 'endEvent',
+    status: 'NOT_EXECUTED',
+    description: 'Retorna resultados, erros, nome do PDF e estado de limpeza.',
+  },
+  {
+    id: 'end_invalid',
+    name: 'Encerrar por parâmetros inválidos',
+    type: 'endEvent',
+    status: 'NOT_EXECUTED',
+    description: 'Retorna erro de validação sem executar scan, chamadas externas ou PDF.',
+  },
 ];
 
-/**
- * Generates official OMG BPMN 2.0 XML string
- */
-export function generateOmgBpmnXml(processId: string = 'SolanaAnchorDevSecOpsProcess'): string {
+export function generateOmgBpmnXml(processId = 'EgcOneClickProcess'): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
-                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" 
-                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" 
-                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI" 
-                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn" 
-                  id="Definitions_AnchorDevSecOps" 
-                  targetNamespace="http://bpmn.io/schema/bpmn" 
-                  exporter="Solana Anchor DevSecOps IDE" 
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  id="Definitions_EgcOneClick"
+                  targetNamespace="https://egc.devsecops/contracts/v1"
+                  exporter="EGC DevSecOps IDE"
                   exporterVersion="1.0.0">
-  <bpmn:process id="${processId}" name="Solana Anchor DevSecOps Security Pipeline" isExecutable="true">
-    <bpmn:startEvent id="start_1" name="Trigger DevSecOps Audit">
+  <bpmn:process id="${processId}" name="EGC One-Click: Entrada, Validação, Execução, Evidência e Auditoria" isExecutable="false">
+    <bpmn:startEvent id="start_1" name="Solicitação recebida">
       <bpmn:outgoing>flow_1</bpmn:outgoing>
     </bpmn:startEvent>
-    <bpmn:userTask id="task_code" name="Write Anchor Program (lib.rs)" camunda:assignee="Developer">
+    <bpmn:userTask id="task_input" name="Informar repositório e credencial GitHub">
       <bpmn:incoming>flow_1</bpmn:incoming>
       <bpmn:outgoing>flow_2</bpmn:outgoing>
     </bpmn:userTask>
-    <bpmn:serviceTask id="task_ast" name="AST Static Security Auditor" camunda:class="com.solana.ast.Auditor">
+    <bpmn:serviceTask id="task_validate" name="Validar parâmetros e isolamento do alvo" camunda:class="EGC.validateTargetIsolation">
       <bpmn:incoming>flow_2</bpmn:incoming>
       <bpmn:outgoing>flow_3</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:exclusiveGateway id="gw_ast_eval" name="AST Score &gt;= 85?">
+    <bpmn:exclusiveGateway id="gw_target_valid" name="Parâmetros válidos?">
       <bpmn:incoming>flow_3</bpmn:incoming>
-      <bpmn:outgoing>flow_4_pass</bpmn:outgoing>
+      <bpmn:outgoing>flow_target_valid</bpmn:outgoing>
+      <bpmn:outgoing>flow_target_invalid</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:serviceTask id="task_fuzz" name="SVM Property Fuzzing (10,000 Vectors)" camunda:class="com.solana.fuzzer.Engine">
-      <bpmn:incoming>flow_4_pass</bpmn:incoming>
+    <bpmn:endEvent id="end_invalid" name="Erro de validação">
+      <bpmn:incoming>flow_target_invalid</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="task_scan" name="Scan AST e contexto arquitetural" camunda:class="EGC.scanAndBuildContext">
+      <bpmn:incoming>flow_target_valid</bpmn:incoming>
+      <bpmn:outgoing>flow_4</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="task_issues" name="Criar issues; acumular falhas e continuar" camunda:class="EGC.createGitHubIssues">
+      <bpmn:incoming>flow_4</bpmn:incoming>
       <bpmn:outgoing>flow_5</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:exclusiveGateway id="gw_fuzz_eval" name="Invariant Violations == 0?">
+    <bpmn:serviceTask id="task_pr" name="Criar Pull Request sem auto-merge" camunda:class="EGC.createGitHubPullRequest">
       <bpmn:incoming>flow_5</bpmn:incoming>
-      <bpmn:outgoing>flow_6_pass</bpmn:outgoing>
+      <bpmn:outgoing>flow_6</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="gw_pr_success" name="Pull Request criado?">
+      <bpmn:incoming>flow_6</bpmn:incoming>
+      <bpmn:outgoing>flow_pr_created</bpmn:outgoing>
+      <bpmn:outgoing>flow_pr_failed</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:serviceTask id="task_graphrag" name="GraphRAG Cross-Instruction Audit" camunda:class="com.solana.graphrag.Auditor">
-      <bpmn:incoming>flow_6_pass</bpmn:incoming>
+    <bpmn:serviceTask id="task_cleanup" name="Limpar estado após PR criado" camunda:class="EGC.purgeEgcState">
+      <bpmn:incoming>flow_pr_created</bpmn:incoming>
       <bpmn:outgoing>flow_7</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:serviceTask id="task_pr" name="Atomic GitHub Commit &amp; PR Dispatch" camunda:class="com.solana.github.Pipeline">
+    <bpmn:serviceTask id="task_pdf" name="Gerar relatório PDF auditável" camunda:class="EGC.generateAuditablePdfReport">
       <bpmn:incoming>flow_7</bpmn:incoming>
+      <bpmn:incoming>flow_pr_failed</bpmn:incoming>
       <bpmn:outgoing>flow_8</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:endEvent id="end_1" name="Deployment Certified">
+    <bpmn:endEvent id="end_success" name="Resultado e evidências devolvidos">
       <bpmn:incoming>flow_8</bpmn:incoming>
     </bpmn:endEvent>
-    
-    <bpmn:sequenceFlow id="flow_1" sourceRef="start_1" targetRef="task_code" />
-    <bpmn:sequenceFlow id="flow_2" sourceRef="task_code" targetRef="task_ast" />
-    <bpmn:sequenceFlow id="flow_3" sourceRef="task_ast" targetRef="gw_ast_eval" />
-    <bpmn:sequenceFlow id="flow_4_pass" name="Passed" sourceRef="gw_ast_eval" targetRef="task_fuzz" />
-    <bpmn:sequenceFlow id="flow_5" sourceRef="task_fuzz" targetRef="gw_fuzz_eval" />
-    <bpmn:sequenceFlow id="flow_6_pass" name="Verified" sourceRef="gw_fuzz_eval" targetRef="task_graphrag" />
-    <bpmn:sequenceFlow id="flow_7" sourceRef="task_graphrag" targetRef="task_pr" />
-    <bpmn:sequenceFlow id="flow_8" sourceRef="task_pr" targetRef="end_1" />
+    <bpmn:sequenceFlow id="flow_1" sourceRef="start_1" targetRef="task_input" />
+    <bpmn:sequenceFlow id="flow_2" sourceRef="task_input" targetRef="task_validate" />
+    <bpmn:sequenceFlow id="flow_3" sourceRef="task_validate" targetRef="gw_target_valid" />
+    <bpmn:sequenceFlow id="flow_target_valid" name="Válidos" sourceRef="gw_target_valid" targetRef="task_scan" />
+    <bpmn:sequenceFlow id="flow_target_invalid" name="Inválidos" sourceRef="gw_target_valid" targetRef="end_invalid" />
+    <bpmn:sequenceFlow id="flow_4" sourceRef="task_scan" targetRef="task_issues" />
+    <bpmn:sequenceFlow id="flow_5" sourceRef="task_issues" targetRef="task_pr" />
+    <bpmn:sequenceFlow id="flow_6" sourceRef="task_pr" targetRef="gw_pr_success" />
+    <bpmn:sequenceFlow id="flow_pr_created" name="Criado: limpar estado" sourceRef="gw_pr_success" targetRef="task_cleanup" />
+    <bpmn:sequenceFlow id="flow_pr_failed" name="Falhou: preservar erro e continuar" sourceRef="gw_pr_success" targetRef="task_pdf" />
+    <bpmn:sequenceFlow id="flow_7" sourceRef="task_cleanup" targetRef="task_pdf" />
+    <bpmn:sequenceFlow id="flow_8" sourceRef="task_pdf" targetRef="end_success" />
   </bpmn:process>
-  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
-    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="${processId}">
-      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="start_1">
-        <dc:Bounds x="160" y="100" width="36" height="36" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_Code_di" bpmnElement="task_code">
-        <dc:Bounds x="250" y="78" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_Ast_di" bpmnElement="task_ast">
-        <dc:Bounds x="400" y="78" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Gateway_Ast_di" bpmnElement="gw_ast_eval" isMarkerVisible="true">
-        <dc:Bounds x="550" y="93" width="50" height="50" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_Fuzz_di" bpmnElement="task_fuzz">
-        <dc:Bounds x="650" y="78" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Gateway_Fuzz_di" bpmnElement="gw_fuzz_eval" isMarkerVisible="true">
-        <dc:Bounds x="800" y="93" width="50" height="50" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_GraphRag_di" bpmnElement="task_graphrag">
-        <dc:Bounds x="900" y="78" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_PR_di" bpmnElement="task_pr">
-        <dc:Bounds x="1050" y="78" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Event_End_di" bpmnElement="end_1">
-        <dc:Bounds x="1200" y="100" width="36" height="36" />
-      </bpmndi:BPMNShape>
-    </bpmndi:BPMNPlane>
-  </bpmndi:BPMNDiagram>
 </bpmn:definitions>`;
 }
 
-/**
- * Triggers a download of the OMG BPMN 2.0 XML file in the browser
- */
-export function downloadBpmnFile(filename: string = 'solana-anchor-devsecops-workflow.bpmn') {
+export function downloadBpmnFile(filename = 'egc-one-click-workflow.bpmn') {
   const xml = generateOmgBpmnXml();
   const blob = new Blob([xml], { type: 'application/xml' });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
   URL.revokeObjectURL(url);
 }

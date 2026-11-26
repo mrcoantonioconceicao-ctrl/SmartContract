@@ -1127,7 +1127,7 @@ pub struct UserCounter { pub authority: Pubkey, pub count: u64, pub bump: u8 }`;
                   <span>Orquestrador de Processos BPMN 2.0 (Solana Anchor DevSecOps)</span>
                 </h3>
                 <p className="text-xs text-slate-400 mt-1">
-                  Mapeia os portões de qualidade de código, checagem de invariantes e geração atómica de Pull Request em conformidade com o padrão OMG.
+                  Representa o fluxo implementado de entrada, validação, scan, GitHub, PDF e limpeza condicional. O status indica apenas que este é um modelo, não uma execução.
                 </p>
               </div>
 
@@ -1148,7 +1148,7 @@ pub struct UserCounter { pub authority: Pubkey, pub count: u64, pub bump: u8 }`;
                     <span className="text-[11px] font-mono text-cyan-400 bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800/30">
                       Passo {idx + 1}: {task.type}
                     </span>
-                    <span className="text-[10px] text-emerald-400 font-mono font-bold">{task.status}</span>
+                    <span className="text-[10px] text-slate-400 font-mono font-bold">{task.status}</span>
                   </div>
                   <h4 className="text-xs font-semibold text-slate-200 mt-1">{task.name}</h4>
                   <p className="text-[11px] text-slate-400 leading-relaxed">{task.description}</p>

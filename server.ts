@@ -21,6 +21,15 @@ import { createRealGitHubIssues } from './src/services/githubIssueService.ts';
 import { purgeEgcState } from './src/services/egcStateManager.ts';
 import { getLearningState, recordPrFeedbackEvent } from './src/services/continuousLearningEngine.ts';
 import { processSecurityAgentChat } from './src/services/securityAgentService.ts';
+import {
+  EgcV1ExecuteRequestSchema,
+  createEgcV1ErrorResponse,
+  getEgcV1Catalog,
+} from './src/contracts/v1/index.ts';
+import {
+  executeEgcContractCommand,
+  getEgcV1HttpStatus,
+} from './src/application/egcCommandService.ts';
 
 dotenv.config();
 
@@ -202,6 +211,37 @@ app.get('/api/mcp/manifest', requireAdminOrMcpAuth, (_req, res) => {
     protocolVersion: '2024-11-05',
     tools: MCP_TOOLS,
   });
+});
+
+app.get('/api/v1/contract', requireAdminOrMcpAuth, (_req, res) => {
+  res.json(getEgcV1Catalog());
+});
+
+app.post('/api/v1/execute', requireAdminOrMcpAuth, async (req, res) => {
+  const parsed = EgcV1ExecuteRequestSchema.safeParse(req.body);
+  if (!parsed.success) {
+    const response = createEgcV1ErrorResponse(
+      'INVALID_INPUT',
+      'Request does not match the v1 execution envelope.',
+      {
+        command: typeof req.body?.command === 'string' ? req.body.command : undefined,
+        correlationId: typeof req.body?.correlationId === 'string' ? req.body.correlationId : undefined,
+        issues: parsed.error.issues.map(issue => ({
+          path: issue.path.map(part => typeof part === 'number' ? part : String(part)),
+          code: issue.code,
+          message: issue.message,
+        })),
+      },
+    );
+    return res.status(400).json(response);
+  }
+
+  const response = await executeEgcContractCommand(
+    parsed.data.command,
+    parsed.data.input,
+    parsed.data.correlationId,
+  );
+  return res.status(getEgcV1HttpStatus(response)).json(response);
 });
 
 // 3. Model Context Protocol (MCP) Tool Execution Endpoint
@@ -598,4 +638,9 @@ async function startServer() {
   });
 }
 
-startServer();
+export { app };
+export default app;
+
+if (process.env.EGC_DISABLE_LISTEN !== '1') {
+  startServer();
+}

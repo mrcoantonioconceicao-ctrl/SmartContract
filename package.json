@@ -15,8 +15,9 @@
     "clean:egc": "tsx src/mcp/egcClean.ts",
     "mcp": "tsx src/mcp/cli.ts",
     "test:mcp": "tsx src/mcp/test-mcp.ts",
+    "egc:sync-manifest": "tsx scripts/sync-egc-manifest.ts",
     "test:anchor": "tsx tests/anchor-security-suite.ts",
-    "test": "tsx tests/anchor-security-suite.ts && tsx src/mcp/test-mcp.ts",
+    "test": "tsx tests/anchor-security-suite.ts && tsx src/mcp/test-mcp.ts && tsx tests/egc-contract.test.ts",
     "egc:cli": "tsx scripts/egc-cli.ts",
     "egc:plugin": "bash scripts/install-egc-plugin.sh",
     "hooks:setup": "bash scripts/setup-git-hooks.sh"
