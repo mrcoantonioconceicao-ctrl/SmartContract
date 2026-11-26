@@ -337,8 +337,9 @@ pub struct UserCounter { pub authority: Pubkey, pub count: u64, pub bump: u8 }`;
       if (selectedMcpTool === 'generate_anchor_contract') {
         args = {
           programName: 'solana_sandbox_counter',
-          description: 'Secure Solana Counter with checked math and authority isolation',
-          features: ['checked_math', 'pda_derivation', 'has_one_guard', 'close_instruction']
+          accountName: 'UserCounter',
+          pdaPrefix: 'counter',
+          includeCloseInstruction: true,
         };
       } else if (selectedMcpTool === 'audit_rust_ast' || selectedMcpTool === 'audit_anchor_ast') {
         args = { sourceCode: activeRustCode };

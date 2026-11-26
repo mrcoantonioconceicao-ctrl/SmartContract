@@ -87,19 +87,21 @@ The human-readable aliases also print the generated `correlationId` and
 
 All object inputs are strict: unknown fields are rejected. Optional `files` means
 an array of `{ "path": string, "content": string }`; at most 200 files are
-accepted, paths are limited to 512 characters, and file content to 1,000,000
-characters.
+accepted, paths are limited to 512 characters, and an individual file's content
+to 1,000,000 characters. All string values in one command input are additionally
+capped at 200,000 combined characters. Both HTTP adapters cap JSON request bodies
+at 2 MiB.
 
 | Command | Input | Validated output |
 |---|---|---|
 | `egc_contract_catalog` | `{}` | Version, command input/output JSON Schemas, error codes, measurement descriptions |
-| `generate_anchor_contract` | Optional `programName`, `accountName`, `pdaPrefix`, `hasCheckedMath`, `hasSignerCheck`, `includeCloseInstruction` | Generated Rust, account byte sizing, configured guards, AST audit preview; rent lamports use the generator formula, not an RPC quote |
+| `generate_anchor_contract` | Optional `programName`, `accountName`, `pdaPrefix`, `hasCheckedMath`, `hasSignerCheck`, `includeCloseInstruction` | Generated Rust, account byte sizing, guards detected in emitted source, AST audit preview; rent lamports use the generator formula, not an RPC quote |
 | `audit_rust_ast` | Required `sourceCode` (1–200,000 characters) | Rule counts, findings, account sizing/PDA checks, audit timestamp |
-| `create_github_pr` | Required `token`, `owner`, `repoName`; optional branch/title/body/code | PR URL/number, open/manual-merge state; no PAT |
+| `create_github_pr` | Required `token`, `owner`, `repoName`; optional `branchName`, `title`, `body`, `contractCode` | PR URL/number, open/manual-merge state; no PAT |
 | `audit_anchor_ast` | Same as `audit_rust_ast` | Same audit output; compatibility alias |
 | `run_property_fuzzer` | Optional `vectorCount` (1–20,000), math/signer flags | Executed vectors, invariant results, elapsed time, categories and edge cases |
 | `derive_pda_spec` | Required valid `authorityPubkey`; optional printable ASCII seed of 1–32 bytes | Locally derived PDA address, canonical bump, seed data and 49-byte allocation; no RPC rent quote |
-| `query_graphrag_security` | Required instruction target; optional source code | Existing engine status, paths, community when available, graph counts when source-built |
+| `query_graphrag_security` | Required instruction target; optional source code | Existing engine status, paths, source-less community name or source-built community object, graph counts when source-built |
 | `scan_repository_ast` | Optional `files` | Scan timestamp, file/line counters, findings, summary and text-based Solana checks |
 | `create_github_issues` | Required `token`, `owner`, `repoName`; optional findings | Created issue records, counts, errors and message; no PAT |
 | `execute_egc_one_click` | Required `token`, `owner`, `repoName`; optional branch | Scan, issue and PR results, PDF filename, accumulated errors and cleanup status |
@@ -107,7 +109,7 @@ characters.
 | `run_anchor_lint` | Optional `files` | Lint pass/fail, issue counts, inspected files and findings |
 | `run_security_lint` | Optional `files` | Active profile, pass/fail, finding counts and equivalent Clippy command |
 | `egc_clean_state` | `{}` | Actual cleanup result, timestamp, prior target and cleanup details |
-| `record_batch_audit_receipts` | Required auditor public key and 1–5 validated receipt items; optional batch ID | Locally prepared PDA/batch summary. The score average is derived from supplied items. `submitted` is always false: this adapter has no signing-key input and does not submit a transaction. |
+| `record_batch_audit_receipts` | Required auditor public key and 1–5 validated receipt items; optional batch ID | Locally prepared PDA/batch summary. The score average is derived from supplied items. `submitted` is always false: the underlying receipt service accepts a `Keypair` or async keypair provider and can sign/send, but this v1 adapter accepts only `auditorPubkey` and does not pass a signer. |
 
 If `files` is omitted, repository-reading commands use the existing
 `/api/egc/physical-files` source when available and otherwise fall back to the
@@ -118,6 +120,10 @@ The generated manifest contains the same names/schemas as the runtime catalog.
 `audit_anchor_ast` is a public alias; `clean_egc_state` is accepted internally as
 a compatibility alias for `egc_clean_state`, but is not advertised as a separate
 tool. The CLI's `init` behavior is informational rather than a domain command.
+
+The generated Anchor contract validates `programName`, `accountName`, and
+`pdaPrefix` before Rust generation. `includeCloseInstruction` controls whether
+both the `close` instruction and its `CloseAccount` context are emitted.
 
 ## Error codes
 
@@ -158,11 +164,13 @@ The actual `executeEgcOneClickFlow` order is:
 6. **Audit response** — return success/error state, scan counters/findings,
    issue/PR evidence, PDF filename, errors and whether cleanup ran.
 
-This sequence is documented from the implemented service, not inferred from the
+The exported BPMN includes shapes and edge geometry for BPMN visualizers. This
+sequence is documented from the implemented service, not inferred from the
 former diagram's hard-coded `85` score gate or `10,000`-vector label. Scanner
 counters are counted from the scanned file set; the scanner's security score and
 GraphRAG/DDD values are local static-engine outputs, not independent
 certification. The Anchor generator's rent lamport value is a formula-based
 estimate, not a live network quote. These outputs are not claims of on-chain
-execution. The batch receipt command is explicitly marked not submitted until a
-signer-enabled domain service exists.
+execution. The batch receipt command is explicitly marked not submitted because
+the v1 adapter has no signer input, even though the lower-level receipt service
+supports a keypair/provider and transaction submission.

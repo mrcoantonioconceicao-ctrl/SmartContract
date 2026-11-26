@@ -23,6 +23,7 @@ export interface ContractTemplateConfig {
   programName: string;
   accountName: string;
   pdaPrefix: string;
+  includeCloseInstruction?: boolean;
   fields: CustomField[];
   instructions: CustomInstructionRule[];
 }
@@ -72,7 +73,43 @@ export function calculateAccountSpace(fields: CustomField[]): {
  * Generates modular Rust Anchor code with DevSecOps AST & security guards
  */
 export function generateModularAnchorContract(config: ContractTemplateConfig): string {
+  if (!/^[a-z][a-z0-9_]{1,63}$/.test(config.programName)) {
+    throw new Error('programName must be a valid Rust module identifier.');
+  }
+  if (!/^[A-Z][A-Za-z0-9]{1,63}$/.test(config.accountName)) {
+    throw new Error('accountName must be a valid Rust type identifier.');
+  }
+  if (!/^[A-Za-z0-9_-]{1,32}$/.test(config.pdaPrefix)) {
+    throw new Error('pdaPrefix contains characters that are unsafe in a Rust byte string.');
+  }
+
   const { totalBytes } = calculateAccountSpace(config.fields);
+  const closeInstruction = config.includeCloseInstruction === false
+    ? ''
+    : `    /// Closes the PDA and transfers rent lamports back to the signer authority.
+    pub fn close(ctx: Context<CloseAccount>) -> Result<()> {
+        msg!("PDA account safely closed. Rent refunded to: {}", ctx.accounts.authority.key());
+        Ok(())
+    }
+`;
+  const closeAccountContext = config.includeCloseInstruction === false
+    ? ''
+    : `#[derive(Accounts)]
+pub struct CloseAccount<'info> {
+    #[account(
+        mut,
+        seeds = [b"${config.pdaPrefix}", authority.key().as_ref()],
+        bump = ${config.accountName.toLowerCase()}.bump,
+        has_one = authority @ SecurityErrorCode::UnauthorizedAuthority,
+        close = authority
+    )]
+    pub ${config.accountName.toLowerCase()}: Account<'info, ${config.accountName}>,
+
+    #[account(mut)]
+    pub authority: Signer<'info>,
+}
+
+`;
 
   return `use anchor_lang::prelude::*;
 
@@ -131,11 +168,7 @@ pub mod ${config.programName} {
         Ok(())
     }
 
-    /// Closes the PDA and transfers rent lamports back to the signer authority.
-    pub fn close(ctx: Context<CloseAccount>) -> Result<()> {
-        msg!("PDA account safely closed. Rent refunded to: {}", ctx.accounts.authority.key());
-        Ok(())
-    }
+${closeInstruction}
 }
 
 // ==========================================
@@ -172,21 +205,7 @@ pub struct UpdateAccount<'info> {
     pub authority: Signer<'info>,
 }
 
-#[derive(Accounts)]
-pub struct CloseAccount<'info> {
-    #[account(
-        mut,
-        seeds = [b"${config.pdaPrefix}", authority.key().as_ref()],
-        bump = ${config.accountName.toLowerCase()}.bump,
-        has_one = authority @ SecurityErrorCode::UnauthorizedAuthority,
-        close = authority
-    )]
-    pub ${config.accountName.toLowerCase()}: Account<'info, ${config.accountName}>,
-
-    #[account(mut)]
-    pub authority: Signer<'info>,
-}
-
+${closeAccountContext}
 // ==========================================
 // STATE DATA STRUCTURE & MEMORY ALLOCATION
 // ==========================================

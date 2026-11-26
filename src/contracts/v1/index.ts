@@ -5,6 +5,8 @@ export const EGC_CONTRACT_VERSION = 'v1' as const;
 export const MAX_SOURCE_LENGTH = 200_000;
 export const MAX_SCAN_FILES = 200;
 export const MAX_FILE_LENGTH = 1_000_000;
+export const MAX_INPUT_STRING_LENGTH = 200_000;
+export const MAX_HTTP_JSON_BODY_BYTES = 2 * 1024 * 1024;
 
 const nonEmptyString = z.string().min(1).regex(/\S/);
 const uuidSchema = z.string().uuid();
@@ -23,6 +25,30 @@ const fileSchema = z.object({
   content: z.string().max(MAX_FILE_LENGTH),
 }).strict();
 const filesSchema = z.array(fileSchema).max(MAX_SCAN_FILES).optional();
+
+export function getEgcV1InputStringLength(input: unknown): number {
+  let totalStringLength = 0;
+  const pending: unknown[] = [input];
+  const visited = new WeakSet<object>();
+  while (pending.length > 0) {
+    const value = pending.pop();
+    if (typeof value === 'string') {
+      totalStringLength += value.length;
+    } else if (Array.isArray(value)) {
+      if (visited.has(value)) continue;
+      visited.add(value);
+      for (const nestedValue of value) pending.push(nestedValue);
+    } else if (typeof value === 'object' && value !== null) {
+      if (visited.has(value)) continue;
+      visited.add(value);
+      for (const [key, nestedValue] of Object.entries(value)) {
+        totalStringLength += key.length;
+        pending.push(nestedValue);
+      }
+    }
+  }
+  return totalStringLength;
+}
 
 const astFindingSchema = z.object({
   id: z.string(),
@@ -243,7 +269,7 @@ const graphMetricsSchema = z.object({
 const graphOutputSchema = z.union([
   z.object({
     targetInstruction: z.string(),
-    connectedCommunity: graphCommunitySchema.nullable(),
+    connectedCommunity: z.union([graphCommunitySchema, z.string()]).nullable(),
     status: z.enum(['CERTIFIED_SECURE', 'ACTION_REQUIRED']),
     securityScore: z.number().min(0).max(100),
     multiHopPaths: z.array(graphPathSchema),
@@ -251,7 +277,7 @@ const graphOutputSchema = z.union([
   }).strict(),
   z.object({
     targetInstruction: z.string(),
-    connectedCommunity: graphCommunitySchema.nullable(),
+    connectedCommunity: z.union([graphCommunitySchema, z.string()]).nullable(),
     status: z.enum(['CERTIFIED_SECURE', 'ACTION_REQUIRED']),
     crossInstructionRiskScore: z.number().min(0).max(100),
     multiHopPaths: z.array(graphPathSchema),
@@ -370,6 +396,10 @@ const catalogOutputSchema = z.object({
     outputSchema: jsonSchemaSchema,
   }).strict()),
   errorCodes: z.array(z.string()),
+  limits: z.object({
+    maxInputStringLength: z.number().int().positive(),
+    maxHttpJsonBodyBytes: z.number().int().positive(),
+  }).strict(),
   measurements: z.array(measurementSchema),
 }).strict();
 
@@ -399,7 +429,7 @@ const commandDefinitions = {
     inputSchema: z.object({
       programName: z.string().regex(/^[a-z][a-z0-9_]{1,63}$/).optional(),
       accountName: z.string().regex(/^[A-Z][A-Za-z0-9]{1,63}$/).optional(),
-      pdaPrefix: z.string().min(1).max(32).optional(),
+      pdaPrefix: z.string().regex(/^[A-Za-z0-9_-]{1,32}$/).optional(),
       hasCheckedMath: z.boolean().optional(),
       hasSignerCheck: z.boolean().optional(),
       includeCloseInstruction: z.boolean().optional(),
@@ -550,7 +580,15 @@ export const EgcV1ExecuteRequestSchema = z.object({
   command: nonEmptyString.max(100),
   input: z.unknown().optional(),
   correlationId: uuidSchema.optional(),
-}).strict();
+}).strict().superRefine((request, context) => {
+  if (getEgcV1InputStringLength(request.input) > MAX_INPUT_STRING_LENGTH) {
+    context.addIssue({
+      code: 'custom',
+      path: ['input'],
+      message: `Combined input strings must not exceed ${MAX_INPUT_STRING_LENGTH} characters.`,
+    });
+  }
+});
 
 export const EgcV1ErrorResponseSchema = z.object({
   contractVersion: z.literal(EGC_CONTRACT_VERSION),
@@ -623,6 +661,10 @@ export function getEgcV1Catalog() {
       outputSchema: z.toJSONSchema(command.outputSchema),
     })),
     errorCodes: [...EGC_V1_ERROR_CODES],
+    limits: {
+      maxInputStringLength: MAX_INPUT_STRING_LENGTH,
+      maxHttpJsonBodyBytes: MAX_HTTP_JSON_BODY_BYTES,
+    },
     measurements: [
       { name: 'scannedFilesCount', description: 'Files inspected by the repository scanner.', unit: 'files' },
       { name: 'scannedLinesCount', description: 'Lines counted by the repository scanner.', unit: 'lines' },

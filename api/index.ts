@@ -24,6 +24,7 @@ import {
   EgcV1ExecuteRequestSchema,
   createEgcV1ErrorResponse,
   getEgcV1Catalog,
+  MAX_HTTP_JSON_BODY_BYTES,
 } from '../src/contracts/v1/index.ts';
 import {
   executeEgcContractCommand,
@@ -31,7 +32,7 @@ import {
 } from '../src/application/egcCommandService.ts';
 
 const app = express();
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: MAX_HTTP_JSON_BODY_BYTES }));
 
 const ADMIN_KEYS = [process.env.ADMIN_API_KEY, process.env.MCP_API_KEY].filter(
   (key): key is string => typeof key === 'string' && key.length > 0,

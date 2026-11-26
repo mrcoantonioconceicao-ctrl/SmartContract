@@ -65,6 +65,7 @@ export class EgcExecutionService {
       programName: args.programName || DEFAULT_COUNTER_CONFIG.programName,
       accountName: args.accountName || DEFAULT_COUNTER_CONFIG.accountName,
       pdaPrefix: args.pdaPrefix || DEFAULT_COUNTER_CONFIG.pdaPrefix,
+      includeCloseInstruction: args.includeCloseInstruction !== false,
     };
 
     const rustSourceCode = generateModularAnchorContract(config);
@@ -78,9 +79,12 @@ export class EgcExecutionService {
       rustSourceCode,
       spaceAnalysis,
       securityGuards: {
-        checkedArithmetic: args.hasCheckedMath !== false,
-        signerGuards: args.hasSignerCheck !== false,
-        canonicalBumpStorage: true,
+        checkedArithmetic:
+          rustSourceCode.includes('.checked_add(') && rustSourceCode.includes('.checked_sub('),
+        signerGuards:
+          rustSourceCode.includes("Signer<'info>") && rustSourceCode.includes('has_one = authority'),
+        canonicalBumpStorage:
+          rustSourceCode.includes('account.bump = ctx.bumps.') && rustSourceCode.includes('bump = '),
         manualMergeOnly: true,
       },
       auditPreview,

@@ -35,7 +35,7 @@ async function main() {
   if (command === 'init' || command === '--plugin') {
     console.log('[EGC CLI] Inicializando pacote de plugin EGC no ambiente local...');
     console.log('Servidor MCP: src/mcp/cli.ts');
-    console.log('Comandos oficiais: use `egc-cli <command> --input-json \'<json>\'`.');
+    console.log('Comandos oficiais: use `egc-cli <command> --input-stdin` ou `--input-file <path>`.');
     console.log('Esta opção é informativa; não altera configurações do editor.');
     return;
   }

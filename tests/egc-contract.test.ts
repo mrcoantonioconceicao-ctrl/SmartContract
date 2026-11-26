@@ -8,8 +8,9 @@ import {
   redactEgcResult,
 } from '../src/application/egcCommandService.ts';
 import { EGC_V1_COMMANDS } from '../src/contracts/v1/index.ts';
-import { MCP_TOOLS } from '../src/mcp/server.ts';
+import { executeMcpToolDirect, MCP_TOOLS } from '../src/mcp/server.ts';
 import { ANCHOR_DEVSECOPS_BPMN_TASKS, generateOmgBpmnXml } from '../src/services/bpmnWorkflowService.ts';
+import { DEFAULT_COUNTER_CONFIG, generateModularAnchorContract } from '../src/services/contractGenerator.ts';
 
 async function withHttpServer<T>(
   app: import('express').Express,
@@ -45,6 +46,9 @@ async function main() {
   assert.ok(bpmnXml.includes('isExecutable="false"'));
   assert.ok(bpmnXml.includes('Parâmetros válidos?'));
   assert.ok(bpmnXml.includes('Pull Request criado?'));
+  assert.ok(bpmnXml.includes('<bpmndi:BPMNDiagram'));
+  assert.ok(bpmnXml.includes('bpmnElement="flow_1"'));
+  assert.ok(bpmnXml.includes('<dc:Bounds'));
   assert.ok(!bpmnXml.includes('10,000'));
   assert.ok(ANCHOR_DEVSECOPS_BPMN_TASKS.every(task => task.status === 'NOT_EXECUTED'));
   assert.deepEqual(redactEgcResult({ message: 'prefix-secret-suffix' }, { token: 'secret' }), {
@@ -75,6 +79,78 @@ async function main() {
     const result = EGC_V1_COMMANDS.generate_anchor_contract.outputSchema.parse(valid.result);
     assert.equal(typeof result.rustSourceCode, 'string');
     assert.equal(result.spaceAnalysis.totalBytes, 49);
+    assert.ok(result.rustSourceCode.includes('pub fn close('));
+    assert.equal(result.securityGuards.checkedArithmetic, true);
+    assert.equal(result.securityGuards.signerGuards, true);
+  }
+
+  for (const pdaPrefix of ['seed"break', 'seed\nbreak']) {
+    assert.equal(
+      EGC_V1_COMMANDS.generate_anchor_contract.inputSchema.safeParse({ pdaPrefix }).success,
+      false,
+      'Rust string delimiters and line breaks are rejected in pdaPrefix',
+    );
+  }
+  for (const [field, value] of [
+    ['programName', 'safe\n#[cfg(any())]'],
+    ['accountName', 'Safe\n}'],
+  ] as const) {
+    assert.equal(
+      EGC_V1_COMMANDS.generate_anchor_contract.inputSchema.safeParse({ [field]: value }).success,
+      false,
+      `${field} rejects values unsafe for generated Rust identifiers`,
+    );
+  }
+  assert.throws(
+    () => generateModularAnchorContract({ ...DEFAULT_COUNTER_CONFIG, pdaPrefix: 'unsafe"seed' }),
+    /unsafe in a Rust byte string/,
+  );
+
+  const disabledClose = await executeEgcContractCommand('generate_anchor_contract', {
+    hasCheckedMath: false,
+    hasSignerCheck: false,
+    includeCloseInstruction: false,
+  });
+  assert.equal(disabledClose.success, true);
+  if (disabledClose.success) {
+    const result = EGC_V1_COMMANDS.generate_anchor_contract.outputSchema.parse(disabledClose.result);
+    assert.equal(result.securityGuards.checkedArithmetic, true);
+    assert.equal(result.securityGuards.signerGuards, true);
+    assert.ok(!result.rustSourceCode.includes('pub fn close('));
+    assert.ok(!result.rustSourceCode.includes('CloseAccount'));
+  }
+
+  const oversizedFiles = await executeEgcContractCommand('scan_repository_ast', {
+    files: [
+      { path: 'a.rs', content: 'a'.repeat(67_000) },
+      { path: 'b.rs', content: 'b'.repeat(67_000) },
+      { path: 'c.rs', content: 'c'.repeat(67_000) },
+    ],
+  });
+  assert.equal(oversizedFiles.success, false);
+  if (!oversizedFiles.success) assert.equal(oversizedFiles.error.code, 'INVALID_INPUT');
+
+  const graphResult = await executeEgcContractCommand('query_graphrag_security', {
+    instructionTarget: 'increment',
+  });
+  assert.equal(graphResult.success, true);
+  if (graphResult.success) {
+    const result = EGC_V1_COMMANDS.query_graphrag_security.outputSchema.parse(graphResult.result);
+    assert.equal(typeof result.connectedCommunity, 'string');
+  }
+
+  Object.defineProperty(globalThis, 'window', { value: {}, configurable: true });
+  try {
+    await assert.rejects(
+      executeMcpToolDirect('execute_egc_one_click', {
+        token: 'test-token',
+        owner: 'test-owner',
+        repoName: 'test-repo',
+      }),
+      /authenticated server-side execution/,
+    );
+  } finally {
+    Reflect.deleteProperty(globalThis, 'window');
   }
 
   const invalidPda = await executeEgcContractCommand('derive_pda_spec', {
@@ -117,6 +193,7 @@ async function main() {
         ['GET', '/api/v1/contract'],
         ['POST', '/api/mcp/execute'],
         ['POST', '/api/v1/execute'],
+        ['POST', '/api/github/sync'],
       ] as const;
 
       for (const [method, path] of protectedPaths) {

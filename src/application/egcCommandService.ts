@@ -7,8 +7,10 @@ import {
   EgcV1ErrorCode,
   EgcV1Response,
   EgcV1SuccessEnvelopeSchema,
+  getEgcV1InputStringLength,
   createEgcV1ErrorResponse,
   getEgcV1Catalog,
+  MAX_INPUT_STRING_LENGTH,
 } from '../contracts/v1/index.ts';
 import { getActiveLintProfile, runSecurityLintAudit } from '../services/securityLintingService.ts';
 import { getTargetRepositoryFiles } from '../services/egcCommandCenterService.ts';
@@ -41,6 +43,13 @@ export async function executeEgcCommandRaw(
   const command = getCommandName(toolName);
   if (!command) {
     throw new Error(`Unknown EGC command: ${toolName}`);
+  }
+  if (getEgcV1InputStringLength(rawInput) > MAX_INPUT_STRING_LENGTH) {
+    throw new z.ZodError([{
+      code: 'custom',
+      path: [],
+      message: `Combined input strings must not exceed ${MAX_INPUT_STRING_LENGTH} characters.`,
+    }]);
   }
 
   switch (command) {
@@ -186,7 +195,8 @@ function normalizeCommandResult(
 
       return EGC_V1_COMMANDS.query_graphrag_security.outputSchema.parse({
         targetInstruction: value.targetInstruction,
-        connectedCommunity: null,
+        connectedCommunity:
+          typeof value.connectedCommunity === 'string' ? value.connectedCommunity : null,
         status: value.status,
         securityScore: value.securityScore,
         multiHopPaths: value.multiHopPaths,
@@ -312,7 +322,20 @@ export async function executeEgcContractCommand(
     });
   }
 
-  const inputResult = getInputSchema(command).safeParse(rawInput ?? {});
+  const commandInput = rawInput ?? {};
+  if (getEgcV1InputStringLength(commandInput) > MAX_INPUT_STRING_LENGTH) {
+    return createEgcV1ErrorResponse('INVALID_INPUT', 'Input exceeds the v1 aggregate string limit.', {
+      command,
+      correlationId,
+      issues: [{
+        path: ['input'],
+        code: 'custom',
+        message: `Combined input strings must not exceed ${MAX_INPUT_STRING_LENGTH} characters.`,
+      }],
+    });
+  }
+
+  const inputResult = getInputSchema(command).safeParse(commandInput);
   if (!inputResult.success) {
     return createEgcV1ErrorResponse('INVALID_INPUT', 'Input does not match the v1 command schema.', {
       command,

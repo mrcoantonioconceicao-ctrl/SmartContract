@@ -65,6 +65,13 @@ export function createAnchorMcpServer() {
 }
 
 export async function executeMcpToolDirect(toolName: string, args: Record<string, unknown>) {
+  if (
+    typeof window !== 'undefined' &&
+    ['create_github_pr', 'create_github_issues', 'execute_egc_one_click'].includes(toolName)
+  ) {
+    throw new Error('GitHub side effects require authenticated server-side execution.');
+  }
+
   try {
     return redactEgcResult(await executeEgcCommandRaw(toolName, args), args);
   } catch (error) {

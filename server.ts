@@ -25,6 +25,7 @@ import {
   EgcV1ExecuteRequestSchema,
   createEgcV1ErrorResponse,
   getEgcV1Catalog,
+  MAX_HTTP_JSON_BODY_BYTES,
 } from './src/contracts/v1/index.ts';
 import {
   executeEgcContractCommand,
@@ -40,8 +41,8 @@ const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 const isProduction = process.env.NODE_ENV === 'production';
 
-// Reduz limite de payload JSON para 2mb para mitigar riscos de Denial of Service (DoS)
-app.use(express.json({ limit: '2mb' }));
+// Keep the HTTP body cap aligned with the v1 aggregate input budget.
+app.use(express.json({ limit: MAX_HTTP_JSON_BODY_BYTES }));
 const apiLimiter = rateLimit({
  windowMs: 15 * 60 * 1000,
  max: 100,
