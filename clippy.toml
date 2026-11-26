@@ -13,8 +13,8 @@ type-complexity-threshold = 250
 single-char-binding-names-threshold = 4
 
 disallowed-methods = [
-    { path = "std::panic", reason = "Panics no BPF/SVM causam abortos abruptos; use erros declarativos SecurityErrorCode com Ok(()) ou Err(error!(...))" },
-    { path = "core::panic", reason = "Panics no BPF/SVM causam abortos abruptos; use erros declarativos SecurityErrorCode" },
+    { path = "std::panic::panic_any", reason = "Panics no BPF/SVM causam abortos abruptos; use erros declarativos SecurityErrorCode" },
+    { path = "std::panic::resume_unwind", reason = "Panics no BPF/SVM causam abortos abruptos; use erros declarativos SecurityErrorCode" },
     { path = "std::process::exit", reason = "Proibido em smart contracts Solana Anchor" }
 ]
 

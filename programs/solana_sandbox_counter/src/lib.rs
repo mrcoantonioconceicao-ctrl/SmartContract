@@ -20,8 +20,15 @@ pub mod solana_sandbox_counter {
         counter.count = initial_count;
         counter.bump = ctx.bumps.counter;
 
-        msg!("Initialized UserCounter PDA for authority: {}", counter.authority);
-        msg!("Initial count: {}, Canonical bump: {}", counter.count, counter.bump);
+        msg!(
+            "Initialized UserCounter PDA for authority: {}",
+            counter.authority
+        );
+        msg!(
+            "Initial count: {}, Canonical bump: {}",
+            counter.count,
+            counter.bump
+        );
         Ok(())
     }
 
@@ -35,7 +42,11 @@ pub mod solana_sandbox_counter {
             .checked_add(amount)
             .ok_or(SecurityErrorCode::NumericalOverflow)?;
 
-        msg!("Counter incremented by {}. New count: {}", amount, counter.count);
+        msg!(
+            "Counter incremented by {}. New count: {}",
+            amount,
+            counter.count
+        );
         Ok(())
     }
 
@@ -49,7 +60,11 @@ pub mod solana_sandbox_counter {
             .checked_sub(amount)
             .ok_or(SecurityErrorCode::NumericalUnderflow)?;
 
-        msg!("Counter decremented by {}. New count: {}", amount, counter.count);
+        msg!(
+            "Counter decremented by {}. New count: {}",
+            amount,
+            counter.count
+        );
         Ok(())
     }
 
@@ -58,13 +73,19 @@ pub mod solana_sandbox_counter {
         let counter = &mut ctx.accounts.counter;
         counter.count = 0;
 
-        msg!("Counter reset to zero by authority: {}", ctx.accounts.authority.key());
+        msg!(
+            "Counter reset to zero by authority: {}",
+            ctx.accounts.authority.key()
+        );
         Ok(())
     }
 
     /// Safely closes the PDA account and reclaims rent-exempt lamports back to the authority.
     pub fn close(_ctx: Context<CloseCounter>) -> Result<()> {
-        msg!("UserCounter PDA closed. Rent reclaimed by: {}", _ctx.accounts.authority.key());
+        msg!(
+            "UserCounter PDA closed. Rent reclaimed by: {}",
+            _ctx.accounts.authority.key()
+        );
         Ok(())
     }
 
@@ -77,8 +98,19 @@ pub mod solana_sandbox_counter {
         findings_count: u32,
         security_score: u8,
     ) -> Result<()> {
-        require!(security_score <= 100, SecurityErrorCode::InvalidSecurityScore);
+        require!(
+            security_score <= 100,
+            SecurityErrorCode::InvalidSecurityScore
+        );
         require!(risk_level <= 4, SecurityErrorCode::InvalidRiskLevel);
+        require!(
+            ctx.accounts.target_program.executable,
+            SecurityErrorCode::InvalidTargetProgram
+        );
+        require!(
+            ctx.accounts.target_program.key() != Pubkey::default(),
+            SecurityErrorCode::InvalidTargetProgram
+        );
 
         let receipt = &mut ctx.accounts.receipt;
         receipt.auditor = ctx.accounts.auditor.key();
@@ -124,8 +156,16 @@ pub mod solana_sandbox_counter {
             msg!("Cumulative audits registered: {}", counter.count);
         }
 
-        msg!("Audit receipt recorded on-chain for target: {}", receipt.target_program);
-        msg!("Security Score: {}/100, Risk Level: {}, Findings: {}", security_score, risk_level, findings_count);
+        msg!(
+            "Audit receipt recorded on-chain for target: {}",
+            receipt.target_program
+        );
+        msg!(
+            "Security Score: {}/100, Risk Level: {}, Findings: {}",
+            security_score,
+            risk_level,
+            findings_count
+        );
         Ok(())
     }
 
@@ -168,16 +208,16 @@ pub mod solana_sandbox_counter {
             }
         }
 
-        let items_len_u32 = u32::try_from(items.len())
-            .map_err(|_| error!(SecurityErrorCode::BatchSizeExceeded))?;
+        let items_len_u32 =
+            u32::try_from(items.len()).map_err(|_| error!(SecurityErrorCode::BatchSizeExceeded))?;
         let avg_score_u32 = total_score
             .checked_div(items_len_u32)
             .ok_or(SecurityErrorCode::NumericalOverflow)?;
         let avg_score = u8::try_from(avg_score_u32)
             .map_err(|_| error!(SecurityErrorCode::NumericalOverflow))?;
 
-        let receipts_count = u8::try_from(items.len())
-            .map_err(|_| error!(SecurityErrorCode::BatchSizeExceeded))?;
+        let receipts_count =
+            u8::try_from(items.len()).map_err(|_| error!(SecurityErrorCode::BatchSizeExceeded))?;
 
         let batch = &mut ctx.accounts.batch_summary;
         batch.auditor = ctx.accounts.auditor.key();
@@ -221,10 +261,17 @@ pub mod solana_sandbox_counter {
                 .count
                 .checked_add(items_len_u64)
                 .ok_or(SecurityErrorCode::NumericalOverflow)?;
-            msg!("Cumulative audits registered after batch: {}", counter.count);
+            msg!(
+                "Cumulative audits registered after batch: {}",
+                counter.count
+            );
         }
 
-        msg!("Batch audit receipt recorded on-chain. Items: {}, Avg Score: {}", items.len(), avg_score);
+        msg!(
+            "Batch audit receipt recorded on-chain. Items: {}, Avg Score: {}",
+            items.len(),
+            avg_score
+        );
         Ok(())
     }
 }
@@ -356,23 +403,21 @@ impl UserCounter {
     pub const BUMP_SPACE: usize = 1;
 
     /// Total space: 8 + 32 + 8 + 1 = 49 bytes
-    pub const ACCOUNT_SPACE: usize = Self::DISCRIMINATOR_SPACE
-        + Self::AUTHORITY_SPACE
-        + Self::COUNT_SPACE
-        + Self::BUMP_SPACE;
+    pub const ACCOUNT_SPACE: usize =
+        Self::DISCRIMINATOR_SPACE + Self::AUTHORITY_SPACE + Self::COUNT_SPACE + Self::BUMP_SPACE;
 }
 
 /// Chain-Anchored Audit Receipt account storing verified security posture
 #[account]
 pub struct AuditReceipt {
-    pub auditor: Pubkey,         // 32 bytes
-    pub target_program: Pubkey,  // 32 bytes
-    pub audit_hash: [u8; 32],    // 32 bytes (SHA-256 / Blake3)
-    pub timestamp: i64,          // 8 bytes (Unix timestamp)
-    pub findings_count: u32,     // 4 bytes
-    pub security_score: u8,      // 1 byte (0 to 100)
-    pub risk_level: u8,          // 1 byte (0=SECURE, 1=LOW, 2=MEDIUM, 3=HIGH, 4=CRITICAL)
-    pub bump: u8,                // 1 byte
+    pub auditor: Pubkey,        // 32 bytes
+    pub target_program: Pubkey, // 32 bytes
+    pub audit_hash: [u8; 32],   // 32 bytes (SHA-256 / Blake3)
+    pub timestamp: i64,         // 8 bytes (Unix timestamp)
+    pub findings_count: u32,    // 4 bytes
+    pub security_score: u8,     // 1 byte (0 to 100)
+    pub risk_level: u8,         // 1 byte (0=SECURE, 1=LOW, 2=MEDIUM, 3=HIGH, 4=CRITICAL)
+    pub bump: u8,               // 1 byte
 }
 
 impl AuditReceipt {
@@ -403,14 +448,14 @@ impl AuditReceipt {
 /// Aggregated Batch Audit Summary account storing verified security posture for up to 5 programs
 #[account]
 pub struct BatchAuditSummary {
-    pub auditor: Pubkey,               // 32 bytes
-    pub batch_id: [u8; 32],            // 32 bytes (batch merkle root or hash)
-    pub receipts_count: u8,            // 1 byte (max 5)
-    pub total_findings: u32,           // 4 bytes
-    pub average_security_score: u8,    // 1 byte (0 to 100)
-    pub highest_risk_level: u8,        // 1 byte (0=SECURE, 1=LOW, 2=MEDIUM, 3=HIGH, 4=CRITICAL)
-    pub timestamp: i64,                // 8 bytes (Unix timestamp)
-    pub bump: u8,                      // 1 byte
+    pub auditor: Pubkey,            // 32 bytes
+    pub batch_id: [u8; 32],         // 32 bytes (batch merkle root or hash)
+    pub receipts_count: u8,         // 1 byte (max 5)
+    pub total_findings: u32,        // 4 bytes
+    pub average_security_score: u8, // 1 byte (0 to 100)
+    pub highest_risk_level: u8,     // 1 byte (0=SECURE, 1=LOW, 2=MEDIUM, 3=HIGH, 4=CRITICAL)
+    pub timestamp: i64,             // 8 bytes (Unix timestamp)
+    pub bump: u8,                   // 1 byte
 }
 
 impl BatchAuditSummary {
@@ -461,6 +506,9 @@ pub enum SecurityErrorCode {
 
     #[msg("Risk level must be between 0 (SECURE) and 4 (CRITICAL)")]
     InvalidRiskLevel,
+
+    #[msg("Target account must be a non-default executable program")]
+    InvalidTargetProgram,
 
     #[msg("Empty batch is not allowed")]
     EmptyBatchNotAllowed,

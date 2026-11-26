@@ -6,6 +6,7 @@
  */
 
 import express from 'express';
+import { timingSafeEqual } from 'node:crypto';
 import fs from 'fs';
 import path from 'path';
 import { executeMcpToolDirect, MCP_TOOLS } from '../src/mcp/server.ts';
@@ -23,8 +24,33 @@ import { processSecurityAgentChat } from '../src/services/securityAgentService.t
 const app = express();
 app.use(express.json({ limit: '10mb' }));
 
+const requireAdminAuth: express.RequestHandler = (req, res, next) => {
+  const keys = [process.env.ADMIN_API_KEY, process.env.MCP_API_KEY].filter(
+    (key): key is string => typeof key === 'string' && key.length > 0,
+  );
+  const authorization = req.get('authorization');
+  const token = authorization?.toLowerCase().startsWith('bearer ')
+    ? authorization.slice(7).trim()
+    : req.get('x-api-key')?.trim();
+  const tokenBuffer = token ? Buffer.from(token) : undefined;
+  const isValid = keys.reduce((valid, key) => {
+    const keyBuffer = Buffer.from(key);
+    return (
+      (tokenBuffer && tokenBuffer.length === keyBuffer.length
+        ? timingSafeEqual(tokenBuffer, keyBuffer)
+        : false) || valid
+    );
+  }, false);
+
+  if (!isValid) {
+    return res.status(403).json({ success: false, error: 'Acesso administrativo negado.' });
+  }
+
+  next();
+};
+
 // 1. GitHub CI/CD Pipeline & PR Synchronization
-app.post('/api/github/sync', async (req, res) => {
+app.post('/api/github/sync', requireAdminAuth, async (req, res) => {
   try {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const { token, owner, repoName, branchName, payload } = req.body;
@@ -77,7 +103,7 @@ app.get('/api/mcp/manifest', (_req, res) => {
 });
 
 // 3. Model Context Protocol (MCP) Tool Execution Endpoint
-app.post('/api/mcp/execute', async (req, res) => {
+app.post('/api/mcp/execute', requireAdminAuth, async (req, res) => {
   try {
     const { tool, arguments: args } = req.body;
     if (!tool) {
