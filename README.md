@@ -377,8 +377,8 @@ O **Plugin Universal EGC (Extended Global Context)** conecta o motor de analise 
 Antes de instalar e ativar o plugin EGC, garanta que os seguintes utilitarios estao instalados no sistema operacional do desenvolvedor:
 1. **Node.js**: Versao 20 LTS ou superior (`node --version`).
 2. **Rust & Cargo**: Toolchain estavel (`rustc --version` e `cargo --version`).
-3. **Solana Toolsuite**: Versao 1.18.26 ou superior (`solana --version`).
-4. **Anchor CLI**: Versao 0.30.1 (`anchor --version`).
+3. **Solana Toolsuite**: Versao 4.1.2 (`solana --version`).
+4. **Anchor CLI**: Versao 1.2.2 (`anchor --version`).
 5. **Git**: Git 2.30+ configurado com chave SSH ou Personal Access Token.
 
 ---
@@ -594,27 +594,21 @@ Se qualquer uma das verificacoes falhar, o commit e imediatamente bloqueado pelo
 O repositorio implementa um padrao operacional rigoroso para prontidao institucional em programas de aceleracao (como o ICM Lab Solana), mercado de infraestrutura para ativos RWA e auditorias B2B:
 
 ### 14.1 Pinning Estrito de Dependencias Rust & Solana
-- **Contrato `solana_sandbox_counter`**: Dependencias criticas fixadas com operador exato em `programs/solana_sandbox_counter/Cargo.toml`:
-  - `anchor-lang = "=0.29.0"`
-  - `solana-program = "=1.18.26"`
-  - Essa fixacao impede divergencias de compilacao entre estacoes locais e os runners do GitHub Actions.
+- **Programas Anchor**: `anchor-lang = "=1.2.2"` e a ferramenta Solana 4.1.2 correspondem ao toolchain fixado em `Anchor.toml` e no GitHub Actions.
 
-### 14.2 Sincronizacao de Checksums com o Indice Oficial do crates.io
-- O arquivo `Cargo.lock` e mantido em 100% de paridade criptografica com o crates.io oficial.
-- Checksum verificado e canonico de `solana-program v1.18.26`:
-  ```text
-  c10f4588cefd716b24a1a40dd32c278e43a560ab8ce4de6b5805c9d113afdfa1
-  ```
-- Todas as 44 dependencias do lockfile estao sincronizadas com os hashes oficiais do crates.io.
+### 14.2 Lockfile de Dependencias
+- O `Cargo.lock` versionado registra as versoes e checksums resolvidos para os dois programas Anchor.
+- O CI valida esse lockfile com `cargo check --locked --workspace` antes do build.
+- `RUSTSEC-2025-0141` nao e allowlisted: `bincode 1.3.3` permanece transitivo por Anchor 1.2.2; RustSec classifica o aviso como informativo e nao ha versao corrigida, portanto `cargo audit` deve continuar expondo-o.
 
 ### 14.3 Mecanismo de Auto-Cura na Esteira de CI (`.github/workflows/main.yml`)
 - Na etapa `Verify Cargo Dependencies & Lockfile`, o workflow implementa uma rotina de auto-recuperacao:
   - Executa `cargo check --locked --workspace`.
-  - Caso haja divergencia de hash ou versao decorrente de cache antigo, purga automaticamente as lockfiles (`rm -f Cargo.lock programs/*/Cargo.lock`), regenera o lockfile com o indice oficial do crates.io (`cargo generate-lockfile`), garante compatibilidade de lockfile `version = 3` (incluindo pin de `base64ct 1.6.0` quando aplicavel) para o `cargo-build-sbf` (Rust 1.75) e reexecuta a checagem restrita em modo all-green.
+  - Caso haja divergencia de hash ou versao decorrente de cache antigo, purga automaticamente as lockfiles (`rm -f Cargo.lock programs/*/Cargo.lock`), regenera o lockfile com o indice oficial do crates.io (`cargo generate-lockfile`), garante compatibilidade de lockfile `version = 3` (incluindo pin de `base64ct 1.6.0` quando aplicavel) para o `cargo-build-sbf` e reexecuta a checagem restrita em modo all-green.
 
 ### 14.4 Otimizacao de Memoria e Prevencao de OOM nos Runners
 - Variavel de ambiente `CARGO_BUILD_JOBS: 2` definida tanto no contexto global quanto em cada etapa do workflow.
-- Instalacao oficial do toolchain Agave/Solana v1.18.26 via `https://release.anza.xyz/v1.18.26/install` e compilacao do Anchor configurada com `anchor build --no-idl -- --jobs 2`.
+- Instalacao oficial do toolchain Agave/Solana v4.1.2 via `https://release.anza.xyz/v4.1.2/install`, Anchor CLI 1.2.2 e compilacao configurada com `anchor build --no-idl -- --jobs 2`.
 - Cache agressivo com `actions/cache@v4` cobrindo `~/.cargo/bin`, `~/.cargo/registry`, `~/.cargo/advisory-db`, `target/` e `programs/*/target/`.
 
 ### 14.5 Modernizacao dos Adaptadores TypeScript & Solana Web3

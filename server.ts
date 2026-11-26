@@ -4,6 +4,7 @@
  */
 
 import express from 'express';
+import { timingSafeEqual } from 'node:crypto';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
 import fs from 'fs';
@@ -114,47 +115,34 @@ export const auditRateLimiter = createRateLimiter({
   message: 'Limite de requisicoes de auditoria excedido (maximo 30 requisicoes/minuto). Aguarde antes de submeter nova analise.',
 });
 
-/**
- * Chave mestra configurada via ambiente para autenticacao administrativa e MCP
- */
-const EXPECTED_ADMIN_KEY = process.env.ADMIN_API_KEY || process.env.MCP_API_KEY || 'egc-devsecops-secure-token-2026';
+const ADMIN_KEYS = [process.env.ADMIN_API_KEY, process.env.MCP_API_KEY].filter(
+  (key): key is string => typeof key === 'string' && key.length > 0,
+);
+
+if (process.env.NODE_ENV === 'production' && ADMIN_KEYS.length === 0) {
+  throw new Error('ADMIN_API_KEY or MCP_API_KEY must be configured in production');
+}
 
 /**
  * Middleware de Autenticacao Obrigatorio para Rotas Administrativas e Endpoints MCP.
  * Aceita autenticacao via:
  * 1. Bearer Token no Header: Authorization: Bearer <token>
- * 2. Header customizado de chave de acesso: x-api-key ou x-access-token ou x-admin-key
- * 3. Chave ou PAT em req.body (ex: token de GitHub PAT enviado em criacao de PRs/Issues)
+ * 2. Header customizado de chave de acesso: x-api-key
  */
 export const requireAdminOrMcpAuth: express.RequestHandler = (req, res, next) => {
-  const authHeader = req.headers['authorization'] || req.headers['Authorization'];
-  const apiKeyHeader = req.headers['x-api-key'] || req.headers['x-access-token'] || req.headers['x-admin-key'];
-  const bodyToken = req.body?.token || req.body?.apiKey;
-
-  let token: string | undefined;
-
-  if (typeof authHeader === 'string' && authHeader.toLowerCase().startsWith('bearer ')) {
-    token = authHeader.substring(7).trim();
-  } else if (typeof apiKeyHeader === 'string') {
-    token = apiKeyHeader.trim();
-  } else if (typeof bodyToken === 'string' && bodyToken.trim()) {
-    token = bodyToken.trim();
-  }
-
-  if (!token) {
-    return res.status(401).json({
-      success: false,
-      error: 'Acesso negado: Autenticacao obrigatoria via Bearer Header (Authorization: Bearer <token>) ou chave de acesso (x-api-key).',
-    });
-  }
-
-  const isValid =
-    token === EXPECTED_ADMIN_KEY ||
-    token === 'egc-devsecops-secure-token-2026' ||
-    token.startsWith('ghp_') ||
-    token.startsWith('github_pat_') ||
-    (process.env.ADMIN_API_KEY && token === process.env.ADMIN_API_KEY) ||
-    (process.env.MCP_API_KEY && token === process.env.MCP_API_KEY);
+  const authorization = req.get('authorization');
+  const token = authorization?.toLowerCase().startsWith('bearer ')
+    ? authorization.slice(7).trim()
+    : req.get('x-api-key')?.trim();
+  const tokenBuffer = token ? Buffer.from(token) : undefined;
+  const isValid = ADMIN_KEYS.reduce((valid, key) => {
+    const keyBuffer = Buffer.from(key);
+    return (
+      (tokenBuffer && tokenBuffer.length === keyBuffer.length
+        ? timingSafeEqual(tokenBuffer, keyBuffer)
+        : false) || valid
+    );
+  }, false);
 
   if (!isValid) {
     return res.status(403).json({
@@ -544,7 +532,7 @@ exit 0
   }
 });
 
-app.post('/api/git-hooks/uninstall', (_req, res) => {
+app.post('/api/git-hooks/uninstall', requireAdminOrMcpAuth, (_req, res) => {
   try {
     const hookPath = path.resolve(__dirname, '.git/hooks/pre-commit');
     if (fs.existsSync(hookPath)) {
