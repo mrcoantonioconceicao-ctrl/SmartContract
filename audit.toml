@@ -16,6 +16,7 @@ ignore = [
   "RUSTSEC-2021-0145", # atty legacy
   "RUSTSEC-2022-0090", # rcgen legacy
   "RUSTSEC-2024-0437", # curve25519-dalek legacy transitive
+  "RUSTSEC-2026-0251", # sized-chunks 0.6.5 is transitively required by im 15.1.0 -> solana-frozen-abi 1.18.26 -> solana-program 1.18.26 for Solana 1.18.26 compatibility; not used at runtime on-chain in SBF/BPF.
 ]
 informational_warnings = ["unmaintained", "notice"]
 severity_threshold = "critical"
