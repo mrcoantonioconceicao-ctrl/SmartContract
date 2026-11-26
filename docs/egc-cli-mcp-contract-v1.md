@@ -28,6 +28,19 @@ Use `Authorization: Bearer <key>` or `x-api-key: <key>`. The API key remains
 server-side (`ADMIN_API_KEY` or `MCP_API_KEY`); production startup fails if neither
 is configured. The compatibility MCP endpoint keeps its existing
 `{ success, tool, result }` shape. The v1 endpoint returns the versioned envelope.
+The browser UI does not receive or send these administrative keys. Until a
+server-managed session is implemented, its GitHub sync, hook-management, and
+EGC one-click GitHub actions remain disabled; the browser does not collect or
+send GitHub PATs for these operations. The EGC browser panel uses only bundled
+source files until it can establish an authenticated session. Git-hook
+endpoints are local-server operations and are not implemented by the Vercel
+serverless adapter.
+GitHub owner, repository, and branch names are restricted to path-safe
+identifiers before any GitHub API request is made.
+The legacy repository-file, scan, GitHub issue, EGC cleanup, and learning
+feedback endpoints also require the same administrative authentication on both
+HTTP adapters. Browser learning feedback remains local until a server-managed
+session is available.
 
 Example request:
 
@@ -100,8 +113,8 @@ UTF-16 code units combined, counting string values and object property names
 | `audit_rust_ast` | Required `sourceCode` (field maximum 200,000 UTF-16 code units; the combined input limit also counts its property key) | Rule counts, findings, account sizing/PDA checks, audit timestamp |
 | `create_github_pr` | Required `token`, `owner`, `repoName`; optional `branchName`, `title`, `body`, `contractCode` | PR URL/number, open/manual-merge state; no PAT |
 | `audit_anchor_ast` | Same as `audit_rust_ast` | Same audit output; compatibility alias |
-| `run_property_fuzzer` | Optional `vectorCount` (1–20,000), math/signer flags | Executed vectors, invariant results, elapsed time, categories and edge cases |
-| `derive_pda_spec` | Required valid `authorityPubkey`; optional printable ASCII seed of 1–32 bytes | Locally derived PDA address, canonical bump, seed data and 49-byte allocation; no RPC rent quote |
+| `run_property_fuzzer` | Optional `vectorCount` (1-20,000), math/signer flags | Executed vectors, invariant results, elapsed time, categories and edge cases |
+| `derive_pda_spec` | Required valid `authorityPubkey`; optional printable ASCII seed of 1-32 bytes | Locally derived PDA address, canonical bump, seed data and 49-byte allocation; no RPC rent quote |
 | `query_graphrag_security` | Required instruction target; optional source code | Existing engine status, paths, source-less community name or source-built community object, graph counts when source-built |
 | `scan_repository_ast` | Optional `files` | Scan timestamp, file/line counters, findings, summary and text-based Solana checks |
 | `create_github_issues` | Required `token`, `owner`, `repoName`; optional findings | Created issue records, counts, errors and message; no PAT |
@@ -110,7 +123,7 @@ UTF-16 code units combined, counting string values and object property names
 | `run_anchor_lint` | Optional `files` | Lint pass/fail, issue counts, inspected files and findings |
 | `run_security_lint` | Optional `files` | Active profile, pass/fail, finding counts and equivalent Clippy command |
 | `egc_clean_state` | `{}` | Actual cleanup result, timestamp, prior target and cleanup details |
-| `record_batch_audit_receipts` | Required auditor public key and 1–5 validated receipt items; optional batch ID | Locally prepared PDA/batch summary. The score average is derived from supplied items. `submitted` is always false: the underlying receipt service accepts a `Keypair` or async keypair provider and can sign/send, but this v1 adapter accepts only `auditorPubkey` and does not pass a signer. |
+| `record_batch_audit_receipts` | Required auditor public key and 1-5 validated receipt items; optional batch ID | Locally prepared PDA/batch summary. The score average is derived from supplied items. `submitted` is always false: the underlying receipt service accepts a `Keypair` or async keypair provider and can sign/send, but this v1 adapter accepts only `auditorPubkey` and does not pass a signer. |
 
 If `files` is omitted, repository-reading commands use the existing
 `/api/egc/physical-files` source when available and otherwise fall back to the
@@ -151,18 +164,18 @@ contains no fixed score threshold, vector count, or success claim.
 
 The actual `executeEgcOneClickFlow` order is:
 
-1. **Input and validation** — accept target repository and GitHub PAT, then run
+1. **Input and validation** - accept target repository and GitHub PAT, then run
    target-isolation validation. Invalid targets throw before scan or GitHub calls.
-2. **Execution** — record the in-memory target, obtain available repository files,
+2. **Execution** - record the in-memory target, obtain available repository files,
    extract architecture context, and run the real repository scanner.
-3. **Issues** — attempt GitHub issue creation. Errors are accumulated, and the
+3. **Issues** - attempt GitHub issue creation. Errors are accumulated, and the
    flow still attempts the PR.
-4. **PR and conditional cleanup** — dispatch through the GitHub PR domain service
+4. **PR and conditional cleanup** - dispatch through the GitHub PR domain service
    with auto-merge disabled. A successful PR triggers EGC state cleanup; a failed
    PR does not.
-5. **Evidence** — generate the PDF from scan findings, created issues and the PR
+5. **Evidence** - generate the PDF from scan findings, created issues and the PR
    result. PDF errors are accumulated rather than hidden.
-6. **Audit response** — return success/error state, scan counters/findings,
+6. **Audit response** - return success/error state, scan counters/findings,
    issue/PR evidence, PDF filename, errors and whether cleanup ran.
 
 The exported BPMN includes shapes and edge geometry for BPMN visualizers. This

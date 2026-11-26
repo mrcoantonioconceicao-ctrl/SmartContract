@@ -50,6 +50,7 @@ import {
 } from '../services/egcStateManager.ts';
 import { PreviewRemediationModal } from './PreviewRemediationModal.tsx';
 import { AstFinding } from '../utils/astAuditor.ts';
+import { ADMIN_UI_ACTIONS_ENABLED } from '../utils/adminUiAccess.ts';
 import {
   getLearningState,
   recordPrFeedbackEvent,
@@ -127,6 +128,14 @@ export function EgcCommandCenter() {
    * Acionado pelo botao dedicado com o texto exato "Criar Issues".
    */
   const handleCriarIssues = async () => {
+    if (!ADMIN_UI_ACTIONS_ENABLED) {
+      setCurrentStep({
+        step: 'completed',
+        status: 'error',
+        message: 'A execucao com GitHub esta desativada ate existir uma sessao administrativa autenticada no servidor.',
+      });
+      return;
+    }
     if (isRunning) return;
 
     if (!repoName.trim()) {
@@ -352,7 +361,7 @@ export function EgcCommandCenter() {
               <span>Parametros de Despacho GitHub & Automacao</span>
             </h3>
             <p className="text-xs text-slate-400 mt-1">
-              Configure as credenciais e o repositorio alvo para a execucao integrada na API oficial do GitHub.
+              Acoes GitHub aguardam uma sessao administrativa autenticada no servidor. Sem ela, a analise usa apenas os arquivos empacotados.
             </p>
           </div>
           <button
@@ -404,6 +413,7 @@ export function EgcCommandCenter() {
               value={token}
               onChange={(e) => handleTokenChange(e.target.value)}
               placeholder="ghp_xxxxxxxxxxxx ou github_pat_..."
+              disabled={!ADMIN_UI_ACTIONS_ENABLED}
               className="w-full bg-slate-950 border border-slate-700 focus:border-cyan-500 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none"
             />
             <span className="text-[10px] text-slate-500 block">
@@ -464,7 +474,7 @@ export function EgcCommandCenter() {
 
           <button
             onClick={handleCriarIssues}
-            disabled={isRunning || !token.trim() || !owner.trim() || !repoName.trim()}
+            disabled={!ADMIN_UI_ACTIONS_ENABLED || isRunning || !token.trim() || !owner.trim() || !repoName.trim()}
             className={`cursor-pointer px-6 py-3.5 rounded-xl font-bold text-sm tracking-wide transition-all shadow-lg flex items-center space-x-2 whitespace-nowrap ${
               isRunning
                 ? 'bg-cyan-700 text-white opacity-80 cursor-wait'

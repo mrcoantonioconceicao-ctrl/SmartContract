@@ -96,6 +96,8 @@ app.post('/api/github/sync', requireAdminAuth, async (req, res) => {
       ? 404
       : msg.includes('422')
       ? 422
+      : msg.includes('unsupported or invalid')
+      ? 400
       : msg.includes('obrigatorio') || msg.includes('obrigatório')
       ? 400
       : 500;
@@ -199,7 +201,7 @@ app.get('/api/soa/catalog', (_req, res) => {
 
 // 7. EGC Physical Files Inspection Endpoint (Zero Mocks)
 // Autoria: Marco Antonio Conceicao
-app.get('/api/egc/physical-files', (_req, res) => {
+app.get('/api/egc/physical-files', requireAdminAuth, (_req, res) => {
   try {
     const candidatePaths = [
       'programs/anchor_security_program/src/lib.rs',
@@ -231,7 +233,7 @@ app.get('/api/egc/physical-files', (_req, res) => {
 });
 
 // 8. EGC Deep Repository & AST Scan Endpoint
-app.post('/api/egc/scan', (req, res) => {
+app.post('/api/egc/scan', requireAdminAuth, (req, res) => {
   try {
     let files = req.body?.files;
     if (!files || !Array.isArray(files) || files.length === 0) {
@@ -258,7 +260,7 @@ app.post('/api/egc/scan', (req, res) => {
 });
 
 // 9. GitHub Real Issues Creation Endpoint
-app.post('/api/github/issues', async (req, res) => {
+app.post('/api/github/issues', requireAdminAuth, async (req, res) => {
   try {
     const { token, owner, repoName, findings } = req.body;
     const result = await createRealGitHubIssues({
@@ -276,7 +278,7 @@ app.post('/api/github/issues', async (req, res) => {
 });
 
 // 10. EGC State Clean & Auto-Purge Endpoint (egc clean)
-app.post('/api/egc/clean', (_req, res) => {
+app.post('/api/egc/clean', requireAdminAuth, (_req, res) => {
   try {
     const result = purgeEgcState();
     res.json(result);
@@ -295,7 +297,7 @@ app.get('/api/learning/state', (_req, res) => {
   }
 });
 
-app.post('/api/learning/feedback', (req, res) => {
+app.post('/api/learning/feedback', requireAdminAuth, (req, res) => {
   try {
     const { source, ruleId, repository, deltaWeight, explanation } = req.body;
     if (!ruleId) {

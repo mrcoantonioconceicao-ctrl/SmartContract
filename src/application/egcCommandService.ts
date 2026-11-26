@@ -124,7 +124,7 @@ export async function executeEgcCommandRaw(
   }
 }
 
-function normalizeCommandResult(
+export function normalizeCommandResult(
   command: EgcV1CommandName,
   value: unknown,
   input: unknown,
@@ -255,24 +255,41 @@ function normalizeCommandResult(
       if (!isRecord(value) || !isRecord(value.graphRag) || !isRecord(value.dddModel)) {
         throw new Error('Architecture result is missing its GraphRAG or DDD evidence');
       }
-      const invariants = Array.isArray(value.dddModel.invariants) ? value.dddModel.invariants : [];
+      const { nodes, edges, attackPaths } = value.graphRag;
+      const invariants = value.dddModel.invariants;
+      const soaServices = value.soaServices;
+      if (
+        !Array.isArray(nodes) ||
+        !Array.isArray(edges) ||
+        !Array.isArray(attackPaths) ||
+        !Array.isArray(invariants) ||
+        !Array.isArray(soaServices)
+      ) {
+        throw new Error('Architecture result is missing measured graph, invariant, or service data');
+      }
+
+      const violatedInvariantCount = invariants.filter(item => {
+        if (!isRecord(item) || (item.status !== 'VERIFIED' && item.status !== 'VIOLATED')) {
+          throw new Error('Architecture result contains an invalid DDD invariant');
+        }
+        return item.status === 'VIOLATED';
+      }).length;
+
       return EGC_V1_COMMANDS.analyze_contextual_architecture.outputSchema.parse({
         timestamp: value.timestamp,
         filesScanned: value.filesScanned,
         graph: {
-          nodeCount: Array.isArray(value.graphRag.nodes) ? value.graphRag.nodes.length : 0,
-          edgeCount: Array.isArray(value.graphRag.edges) ? value.graphRag.edges.length : 0,
-          attackPathCount: Array.isArray(value.graphRag.attackPaths) ? value.graphRag.attackPaths.length : 0,
+          nodeCount: nodes.length,
+          edgeCount: edges.length,
+          attackPathCount: attackPaths.length,
         },
         ddd: {
           boundedContext: value.dddModel.boundedContext,
           aggregateRoot: value.dddModel.aggregateRoot,
           invariantCount: invariants.length,
-          violatedInvariantCount: invariants.filter(
-            item => isRecord(item) && item.status === 'VIOLATED',
-          ).length,
+          violatedInvariantCount,
         },
-        soaServicesCount: Array.isArray(value.soaServices) ? value.soaServices.length : 0,
+        soaServicesCount: soaServices.length,
         architecturalSummary: value.architecturalSummary,
       });
     }

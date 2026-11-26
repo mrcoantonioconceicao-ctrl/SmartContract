@@ -195,7 +195,7 @@ app.post('/api/github/sync', requireAdminOrMcpAuth, async (req, res) => {
     return res.json(result);
   } catch (error: any) {
     const msg = error.message || 'Falha ao processar sincronizacao com o GitHub';
-    const status = msg.includes('401') ? 401 : msg.includes('404') ? 404 : msg.includes('422') ? 422 : msg.includes('obrigatorio') || msg.includes('obrigatório') ? 400 : 500;
+    const status = msg.includes('401') ? 401 : msg.includes('404') ? 404 : msg.includes('422') ? 422 : msg.includes('unsupported or invalid') || msg.includes('obrigatorio') || msg.includes('obrigatório') ? 400 : 500;
     return res.status(status).json({
       success: false,
       error: msg,
@@ -328,7 +328,7 @@ app.get('/api/egc/physical-files', requireAdminOrMcpAuth, (_req, res) => {
 });
 
 // 7. EGC Deep Repository & AST Scan Endpoint
-app.post('/api/egc/scan', apiLimiter, auditRateLimiter, (req, res) => {
+app.post('/api/egc/scan', requireAdminOrMcpAuth, apiLimiter, auditRateLimiter, (req, res) => {
   try {
     let files = req.body?.files;
     if (!files || !Array.isArray(files) || files.length === 0) {

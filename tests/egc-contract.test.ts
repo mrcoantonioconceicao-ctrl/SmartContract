@@ -5,6 +5,7 @@ import { Keypair } from '@solana/web3.js';
 import manifest from '../src/mcp/manifest.json' with { type: 'json' };
 import {
   executeEgcContractCommand,
+  normalizeCommandResult,
   redactEgcResult,
 } from '../src/application/egcCommandService.ts';
 import {
@@ -18,6 +19,7 @@ import {
   isValidXmlNcName,
 } from '../src/services/bpmnWorkflowService.ts';
 import { DEFAULT_COUNTER_CONFIG, generateModularAnchorContract } from '../src/services/contractGenerator.ts';
+import { createGitHubPullRequest } from '../src/services/githubPrService.ts';
 
 async function withHttpServer<T>(
   app: import('express').Express,
@@ -86,6 +88,15 @@ async function main() {
   const unknown = await executeEgcContractCommand('not_a_command', {});
   assert.equal(unknown.success, false);
   if (!unknown.success) assert.equal(unknown.error.code, 'UNKNOWN_COMMAND');
+  assert.throws(
+    () => normalizeCommandResult('analyze_contextual_architecture', {
+      graphRag: { nodes: [], edges: [] },
+      dddModel: { boundedContext: 'test', aggregateRoot: 'test', invariants: [] },
+      soaServices: [],
+    }, {}),
+    /missing measured graph, invariant, or service data/,
+    'Architecture output cannot invent zero-valued counts when evidence is missing',
+  );
 
   const valid = await executeEgcContractCommand('generate_anchor_contract', {});
   assert.equal(valid.success, true);
@@ -117,6 +128,55 @@ async function main() {
       `${field} rejects values unsafe for generated Rust identifiers`,
     );
   }
+  assert.equal(
+    EGC_V1_COMMANDS.create_github_pr.inputSchema.safeParse({
+      token: 'ghp_test_token',
+      owner: 'owner/other',
+      repoName: 'safe-repo',
+    }).success,
+    false,
+    'GitHub owner identifiers cannot alter repository API paths',
+  );
+  assert.equal(
+    EGC_V1_COMMANDS.create_github_pr.inputSchema.safeParse({
+      token: 'ghp_test_token',
+      owner: 'valid-owner',
+      repoName: '../other',
+    }).success,
+    false,
+    'GitHub repository names cannot contain path traversal segments',
+  );
+  for (const branchName of ['feature?state=closed', 'feature#fragment', '../other']) {
+    assert.equal(
+      EGC_V1_COMMANDS.create_github_pr.inputSchema.safeParse({
+        token: 'ghp_test_token',
+        owner: 'valid-owner',
+        repoName: 'safe-repo',
+        branchName,
+      }).success,
+      false,
+      'GitHub branch names reject URL delimiters and traversal segments',
+    );
+  }
+  assert.equal(
+    EGC_V1_COMMANDS.create_github_pr.inputSchema.safeParse({
+      token: 'ghp_test_token',
+      owner: 'valid-owner',
+      repoName: 'safe_repo',
+      branchName: 'fix/security-audit-hardening',
+    }).success,
+    true,
+    'Normal slash-separated branch names remain supported',
+  );
+  await assert.rejects(
+    () => createGitHubPullRequest({
+      token: 'ghp_test_token',
+      owner: 'owner/other',
+      repoName: 'safe-repo',
+    }),
+    /GitHub owner/,
+    'Service validates repository targets before making external requests',
+  );
   assert.throws(
     () => generateModularAnchorContract({ ...DEFAULT_COUNTER_CONFIG, pdaPrefix: 'unsafe"seed' }),
     /unsafe in a Rust byte string/,
@@ -233,6 +293,11 @@ async function main() {
         ['POST', '/api/mcp/execute'],
         ['POST', '/api/v1/execute'],
         ['POST', '/api/github/sync'],
+        ['GET', '/api/egc/physical-files'],
+        ['POST', '/api/egc/scan'],
+        ['POST', '/api/github/issues'],
+        ['POST', '/api/egc/clean'],
+        ['POST', '/api/learning/feedback'],
       ] as const;
 
       for (const [method, path] of protectedPaths) {

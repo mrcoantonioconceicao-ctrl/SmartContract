@@ -10,6 +10,10 @@
 import { RealScanFinding } from './realRepoScanner.ts';
 import { validateGitHubToken } from './githubPrService.ts';
 import { ContextualRepositoryArchitecture, enrichFindingWithContext } from './contextualEngine.ts';
+import {
+  isValidGitHubOwner,
+  isValidGitHubRepositoryName,
+} from '../utils/githubIdentifiers.ts';
 
 export interface CreateGitHubIssuesOptions {
   token: string;
@@ -54,9 +58,15 @@ export async function createRealGitHubIssues(
   if (!owner || !owner.trim()) {
     throw new Error('O proprietario (owner) do repositorio e obrigatorio.');
   }
+  if (!isValidGitHubOwner(owner.trim())) {
+    throw new Error('The GitHub owner has an unsupported or invalid name.');
+  }
 
   if (!repoName || !repoName.trim()) {
     throw new Error('O nome do repositorio (repoName) e obrigatorio.');
+  }
+  if (!isValidGitHubRepositoryName(repoName.trim())) {
+    throw new Error('The GitHub repository name has an unsupported or invalid format.');
   }
 
   // Filtrar findings acionaveis (excluir os que passaram PASS a menos que nao haja nenhum)

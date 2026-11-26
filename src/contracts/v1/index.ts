@@ -4,6 +4,11 @@ import {
   RUST_ACCOUNT_NAME_PATTERN,
   RUST_MODULE_NAME_PATTERN,
 } from '../../utils/rustIdentifiers.ts';
+import {
+  GITHUB_BRANCH_NAME_PATTERN,
+  GITHUB_OWNER_PATTERN,
+  GITHUB_REPOSITORY_NAME_PATTERN,
+} from '../../utils/githubIdentifiers.ts';
 
 export const EGC_CONTRACT_VERSION = 'v1' as const;
 export const MAX_SOURCE_LENGTH = 200_000;
@@ -449,9 +454,9 @@ const commandDefinitions = {
     description: 'Creates a GitHub pull request with manual merge only; the PAT is accepted only as input and is never returned.',
     inputSchema: z.object({
       token: z.string().min(1, 'token é obrigatório').max(4096).regex(/\S/, 'token é obrigatório'),
-      owner: z.string().min(1, 'owner é obrigatório').max(100).regex(/\S/, 'owner é obrigatório'),
-      repoName: z.string().min(1, 'repoName é obrigatório').max(100).regex(/\S/, 'repoName é obrigatório'),
-      branchName: z.string().max(255).optional(),
+      owner: z.string().min(1, 'owner é obrigatório').regex(GITHUB_OWNER_PATTERN, 'owner must be a valid GitHub account name'),
+      repoName: z.string().min(1, 'repoName é obrigatório').regex(GITHUB_REPOSITORY_NAME_PATTERN, 'repoName must be a valid GitHub repository name'),
+      branchName: z.string().regex(GITHUB_BRANCH_NAME_PATTERN).optional(),
       title: z.string().max(256).optional(),
       body: z.string().max(50_000).optional(),
       contractCode: z.string().max(MAX_SOURCE_LENGTH).optional(),
@@ -498,8 +503,8 @@ const commandDefinitions = {
     description: 'Creates GitHub issues from supplied scan findings; the PAT is never included in results.',
     inputSchema: z.object({
       token: z.string().min(1, 'token é obrigatório').max(4096).regex(/\S/, 'token é obrigatório'),
-      owner: z.string().min(1, 'owner é obrigatório').max(100).regex(/\S/, 'owner é obrigatório'),
-      repoName: z.string().min(1, 'repoName é obrigatório').max(100).regex(/\S/, 'repoName é obrigatório'),
+      owner: z.string().min(1, 'owner é obrigatório').regex(GITHUB_OWNER_PATTERN, 'owner must be a valid GitHub account name'),
+      repoName: z.string().min(1, 'repoName é obrigatório').regex(GITHUB_REPOSITORY_NAME_PATTERN, 'repoName must be a valid GitHub repository name'),
       findings: z.array(githubFindingSchema).max(2_000).optional(),
     }).strict(),
     outputSchema: githubIssuesOutputSchema,
@@ -508,9 +513,9 @@ const commandDefinitions = {
     description: 'Runs the implemented scan, issue creation, PR dispatch, PDF generation, and state cleanup flow.',
     inputSchema: z.object({
       token: z.string().min(1, 'token é obrigatório').max(4096).regex(/\S/, 'token é obrigatório'),
-      owner: z.string().min(1, 'owner é obrigatório').max(100).regex(/\S/, 'owner é obrigatório'),
-      repoName: z.string().min(1, 'repoName é obrigatório').max(100).regex(/\S/, 'repoName é obrigatório'),
-      branchName: z.string().max(255).optional(),
+      owner: z.string().min(1, 'owner é obrigatório').regex(GITHUB_OWNER_PATTERN, 'owner must be a valid GitHub account name'),
+      repoName: z.string().min(1, 'repoName é obrigatório').regex(GITHUB_REPOSITORY_NAME_PATTERN, 'repoName must be a valid GitHub repository name'),
+      branchName: z.string().regex(GITHUB_BRANCH_NAME_PATTERN).optional(),
     }).strict(),
     outputSchema: oneClickOutputSchema,
   },

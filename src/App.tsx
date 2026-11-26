@@ -276,21 +276,8 @@ pub struct UserCounter { pub authority: Pubkey, pub count: u64, pub bump: u8 }`;
         explanation: `Correcao validada pelo desenvolvedor no editor AST: ${finding.title}`,
       });
 
-      // Tenta sincronizar com o backend
-      fetch('/api/learning/feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          source: 'MANUAL_FEEDBACK',
-          ruleId: finding.ruleId,
-          repository: 'SolanaAnchorWorkspace',
-          deltaWeight: +3,
-          explanation: `Correcao validada pelo desenvolvedor no editor AST: ${finding.title}`,
-        }),
-      }).catch(() => {});
-
       const newWeight = updatedState.weights[finding.ruleId]?.weight || 35;
-      setLearningFeedbackNotice(`Peso da regra [${finding.ruleId}] refinado para ${newWeight} pts (+3 pts de rigor). Memoria persistida com sucesso.`);
+      setLearningFeedbackNotice(`Peso da regra [${finding.ruleId}] refinado para ${newWeight} pts (+3 pts de rigor). Memoria local atualizada; sincronizacao remota requer sessao administrativa.`);
       setTimeout(() => setLearningFeedbackNotice(null), 5000);
     } catch {
       // Ignora silenciosamente caso storage esteja bloqueado
@@ -1575,20 +1562,8 @@ pub struct UserCounter { pub authority: Pubkey, pub count: u64, pub bump: u8 }`;
                 explanation: `Correcao validada pelo desenvolvedor via Preview Diff: ${previewFinding.title}`,
               });
 
-              fetch('/api/learning/feedback', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  source: 'MANUAL_FEEDBACK',
-                  ruleId: previewFinding.ruleId,
-                  repository: 'SolanaAnchorWorkspace',
-                  deltaWeight: +3,
-                  explanation: `Correcao validada pelo desenvolvedor via Preview Diff: ${previewFinding.title}`,
-                }),
-              }).catch(() => {});
-
               const newWeight = updatedState.weights[previewFinding.ruleId]?.weight || 35;
-              setLearningFeedbackNotice(`Peso da regra [${previewFinding.ruleId}] refinado para ${newWeight} pts (+3 pts de rigor). Memoria persistida com sucesso.`);
+              setLearningFeedbackNotice(`Peso da regra [${previewFinding.ruleId}] refinado para ${newWeight} pts (+3 pts de rigor). Memoria local atualizada; sincronizacao remota requer sessao administrativa.`);
               setTimeout(() => setLearningFeedbackNotice(null), 5000);
             } catch {
               // Silencioso se storage falhar
