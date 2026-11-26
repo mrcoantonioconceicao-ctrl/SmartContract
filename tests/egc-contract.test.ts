@@ -7,9 +7,16 @@ import {
   executeEgcContractCommand,
   redactEgcResult,
 } from '../src/application/egcCommandService.ts';
-import { EGC_V1_COMMANDS } from '../src/contracts/v1/index.ts';
+import {
+  EGC_V1_COMMANDS,
+  getEgcV1InputStringLength,
+} from '../src/contracts/v1/index.ts';
 import { executeMcpToolDirect, MCP_TOOLS } from '../src/mcp/server.ts';
-import { ANCHOR_DEVSECOPS_BPMN_TASKS, generateOmgBpmnXml } from '../src/services/bpmnWorkflowService.ts';
+import {
+  ANCHOR_DEVSECOPS_BPMN_TASKS,
+  generateOmgBpmnXml,
+  isValidXmlNcName,
+} from '../src/services/bpmnWorkflowService.ts';
 import { DEFAULT_COUNTER_CONFIG, generateModularAnchorContract } from '../src/services/contractGenerator.ts';
 
 async function withHttpServer<T>(
@@ -49,6 +56,13 @@ async function main() {
   assert.ok(bpmnXml.includes('<bpmndi:BPMNDiagram'));
   assert.ok(bpmnXml.includes('bpmnElement="flow_1"'));
   assert.ok(bpmnXml.includes('<dc:Bounds'));
+  const unicodeBpmnXml = generateOmgBpmnXml('流程_Δelta');
+  assert.ok(unicodeBpmnXml.includes('id="流程_Δelta"'));
+  assert.ok(isValidXmlNcName('流程_Δelta'));
+  for (const invalidId of ['', '9Process', 'Process:Name', 'bad name', '\uD800']) {
+    assert.equal(isValidXmlNcName(invalidId), false);
+    assert.throws(() => generateOmgBpmnXml(invalidId), /valid XML NCName/);
+  }
   assert.ok(!bpmnXml.includes('10,000'));
   assert.ok(ANCHOR_DEVSECOPS_BPMN_TASKS.every(task => task.status === 'NOT_EXECUTED'));
   assert.deepEqual(redactEgcResult({ message: 'prefix-secret-suffix' }, { token: 'secret' }), {
@@ -93,7 +107,9 @@ async function main() {
   }
   for (const [field, value] of [
     ['programName', 'safe\n#[cfg(any())]'],
+    ['programName', 'type'],
     ['accountName', 'Safe\n}'],
+    ['accountName', 'Loop'],
   ] as const) {
     assert.equal(
       EGC_V1_COMMANDS.generate_anchor_contract.inputSchema.safeParse({ [field]: value }).success,
@@ -104,6 +120,23 @@ async function main() {
   assert.throws(
     () => generateModularAnchorContract({ ...DEFAULT_COUNTER_CONFIG, pdaPrefix: 'unsafe"seed' }),
     /unsafe in a Rust byte string/,
+  );
+  assert.throws(
+    () => generateModularAnchorContract({ ...DEFAULT_COUNTER_CONFIG, programName: 'type' }),
+    /valid Rust module identifier/,
+  );
+  assert.throws(
+    () => generateModularAnchorContract({ ...DEFAULT_COUNTER_CONFIG, accountName: 'Loop' }),
+    /derived account field must be valid Rust identifiers/,
+  );
+  assert.throws(
+    () => generateModularAnchorContract({
+      ...DEFAULT_COUNTER_CONFIG,
+      fields: DEFAULT_COUNTER_CONFIG.fields.map(field =>
+        field.name === 'count' ? { ...field, name: 'loop' } : field,
+      ),
+    }),
+    /non-reserved Rust identifier/,
   );
 
   const disabledClose = await executeEgcContractCommand('generate_anchor_contract', {
@@ -129,6 +162,12 @@ async function main() {
   });
   assert.equal(oversizedFiles.success, false);
   if (!oversizedFiles.success) assert.equal(oversizedFiles.error.code, 'INVALID_INPUT');
+  assert.equal(getEgcV1InputStringLength({ sourceCode: 'a'.repeat(200_000) }), 200_010);
+  const maxFieldSource = await executeEgcContractCommand('audit_rust_ast', {
+    sourceCode: 'a'.repeat(200_000),
+  });
+  assert.equal(maxFieldSource.success, false);
+  if (!maxFieldSource.success) assert.equal(maxFieldSource.error.code, 'INVALID_INPUT');
 
   const graphResult = await executeEgcContractCommand('query_graphrag_security', {
     instructionTarget: 'increment',

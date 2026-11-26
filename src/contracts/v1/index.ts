@@ -1,5 +1,9 @@
 import { z } from 'zod';
 import { PublicKey } from '@solana/web3.js';
+import {
+  RUST_ACCOUNT_NAME_PATTERN,
+  RUST_MODULE_NAME_PATTERN,
+} from '../../utils/rustIdentifiers.ts';
 
 export const EGC_CONTRACT_VERSION = 'v1' as const;
 export const MAX_SOURCE_LENGTH = 200_000;
@@ -427,8 +431,8 @@ const commandDefinitions = {
   generate_anchor_contract: {
     description: 'Generates an Anchor contract and returns its source, byte sizing, guards, and AST audit preview.',
     inputSchema: z.object({
-      programName: z.string().regex(/^[a-z][a-z0-9_]{1,63}$/).optional(),
-      accountName: z.string().regex(/^[A-Z][A-Za-z0-9]{1,63}$/).optional(),
+      programName: z.string().regex(RUST_MODULE_NAME_PATTERN).optional(),
+      accountName: z.string().regex(RUST_ACCOUNT_NAME_PATTERN).optional(),
       pdaPrefix: z.string().regex(/^[A-Za-z0-9_-]{1,32}$/).optional(),
       hasCheckedMath: z.boolean().optional(),
       hasSignerCheck: z.boolean().optional(),

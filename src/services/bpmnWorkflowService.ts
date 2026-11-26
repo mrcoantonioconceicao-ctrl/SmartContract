@@ -105,9 +105,44 @@ export const ANCHOR_DEVSECOPS_BPMN_TASKS: BpmnTask[] = [
   },
 ];
 
+function isXmlNcNameStartCodePoint(codePoint: number): boolean {
+  return codePoint === 0x5f ||
+    (codePoint >= 0x41 && codePoint <= 0x5a) ||
+    (codePoint >= 0x61 && codePoint <= 0x7a) ||
+    (codePoint >= 0xc0 && codePoint <= 0xd6) ||
+    (codePoint >= 0xd8 && codePoint <= 0xf6) ||
+    (codePoint >= 0xf8 && codePoint <= 0x2ff) ||
+    (codePoint >= 0x370 && codePoint <= 0x37d) ||
+    (codePoint >= 0x37f && codePoint <= 0x1fff) ||
+    (codePoint >= 0x200c && codePoint <= 0x200d) ||
+    (codePoint >= 0x2070 && codePoint <= 0x218f) ||
+    (codePoint >= 0x2c00 && codePoint <= 0x2fef) ||
+    (codePoint >= 0x3001 && codePoint <= 0xd7ff) ||
+    (codePoint >= 0xf900 && codePoint <= 0xfdcf) ||
+    (codePoint >= 0xfdf0 && codePoint <= 0xfffd) ||
+    (codePoint >= 0x10000 && codePoint <= 0xeffff);
+}
+
+function isXmlNcNameCodePoint(codePoint: number): boolean {
+  return isXmlNcNameStartCodePoint(codePoint) ||
+    codePoint === 0x2d ||
+    codePoint === 0x2e ||
+    (codePoint >= 0x30 && codePoint <= 0x39) ||
+    codePoint === 0xb7 ||
+    (codePoint >= 0x300 && codePoint <= 0x36f) ||
+    (codePoint >= 0x203f && codePoint <= 0x2040);
+}
+
+export function isValidXmlNcName(value: string): boolean {
+  const codePoints = Array.from(value, character => character.codePointAt(0)!);
+  return codePoints.length > 0 &&
+    isXmlNcNameStartCodePoint(codePoints[0]) &&
+    codePoints.slice(1).every(isXmlNcNameCodePoint);
+}
+
 export function generateOmgBpmnXml(processId = 'EgcOneClickProcess'): string {
-  if (!/^[A-Za-z_][A-Za-z0-9_.-]*$/.test(processId)) {
-    throw new Error('processId must be a valid BPMN identifier.');
+  if (!isValidXmlNcName(processId)) {
+    throw new Error('processId must be a valid XML NCName.');
   }
 
   return `<?xml version="1.0" encoding="UTF-8"?>

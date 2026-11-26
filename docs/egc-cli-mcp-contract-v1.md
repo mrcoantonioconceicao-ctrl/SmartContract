@@ -88,15 +88,16 @@ The human-readable aliases also print the generated `correlationId` and
 All object inputs are strict: unknown fields are rejected. Optional `files` means
 an array of `{ "path": string, "content": string }`; at most 200 files are
 accepted, paths are limited to 512 characters, and an individual file's content
-to 1,000,000 characters. All string values in one command input are additionally
-capped at 200,000 combined characters. Both HTTP adapters cap JSON request bodies
-at 2 MiB.
+to 1,000,000 characters. Each command input is additionally capped at 200,000
+UTF-16 code units combined, counting string values and object property names
+(keys), including nested objects. Both HTTP adapters cap JSON request bodies at
+2 MiB.
 
 | Command | Input | Validated output |
 |---|---|---|
 | `egc_contract_catalog` | `{}` | Version, command input/output JSON Schemas, error codes, measurement descriptions |
 | `generate_anchor_contract` | Optional `programName`, `accountName`, `pdaPrefix`, `hasCheckedMath`, `hasSignerCheck`, `includeCloseInstruction` | Generated Rust, account byte sizing, guards detected in emitted source, AST audit preview; rent lamports use the generator formula, not an RPC quote |
-| `audit_rust_ast` | Required `sourceCode` (1–200,000 characters) | Rule counts, findings, account sizing/PDA checks, audit timestamp |
+| `audit_rust_ast` | Required `sourceCode` (field maximum 200,000 UTF-16 code units; the combined input limit also counts its property key) | Rule counts, findings, account sizing/PDA checks, audit timestamp |
 | `create_github_pr` | Required `token`, `owner`, `repoName`; optional `branchName`, `title`, `body`, `contractCode` | PR URL/number, open/manual-merge state; no PAT |
 | `audit_anchor_ast` | Same as `audit_rust_ast` | Same audit output; compatibility alias |
 | `run_property_fuzzer` | Optional `vectorCount` (1–20,000), math/signer flags | Executed vectors, invariant results, elapsed time, categories and edge cases |

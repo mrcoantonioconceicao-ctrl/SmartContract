@@ -3,6 +3,12 @@
  * Supports customized business rules with DevSecOps constraints
  */
 
+import {
+  isRustAccountTypeName,
+  isRustIdentifier,
+  isRustModuleName,
+} from '../utils/rustIdentifiers.ts';
+
 export interface CustomField {
   name: string;
   rustType: 'u64' | 'u32' | 'u8' | 'i64' | 'Pubkey' | 'bool' | 'String';
@@ -73,14 +79,22 @@ export function calculateAccountSpace(fields: CustomField[]): {
  * Generates modular Rust Anchor code with DevSecOps AST & security guards
  */
 export function generateModularAnchorContract(config: ContractTemplateConfig): string {
-  if (!/^[a-z][a-z0-9_]{1,63}$/.test(config.programName)) {
+  if (!isRustModuleName(config.programName)) {
     throw new Error('programName must be a valid Rust module identifier.');
   }
-  if (!/^[A-Z][A-Za-z0-9]{1,63}$/.test(config.accountName)) {
-    throw new Error('accountName must be a valid Rust type identifier.');
+  if (!isRustAccountTypeName(config.accountName)) {
+    throw new Error('accountName and its derived account field must be valid Rust identifiers.');
   }
   if (!/^[A-Za-z0-9_-]{1,32}$/.test(config.pdaPrefix)) {
     throw new Error('pdaPrefix contains characters that are unsafe in a Rust byte string.');
+  }
+  for (const field of config.fields) {
+    if (!isRustIdentifier(field.name)) {
+      throw new Error(`Field name "${field.name}" must be a valid non-reserved Rust identifier.`);
+    }
+    if (/[\r\n\u2028\u2029]/.test(field.description)) {
+      throw new Error(`Field description for "${field.name}" must be a single line.`);
+    }
   }
 
   const { totalBytes } = calculateAccountSpace(config.fields);

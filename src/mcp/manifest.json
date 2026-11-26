@@ -44,11 +44,11 @@
         "properties": {
           "programName": {
             "type": "string",
-            "pattern": "^[a-z][a-z0-9_]{1,63}$"
+            "pattern": "^(?!(?:as|break|const|continue|crate|else|enum|extern|false|fn|for|if|impl|in|let|loop|match|mod|move|mut|pub|ref|return|self|static|struct|super|trait|true|type|unsafe|use|where|while|async|await|dyn|abstract|become|box|do|final|macro|override|priv|typeof|unsized|virtual|yield|try|gen)$)[a-z][a-z0-9_]{1,63}$"
           },
           "accountName": {
             "type": "string",
-            "pattern": "^[A-Z][A-Za-z0-9]{1,63}$"
+            "pattern": "^(?!(?:as|As|break|Break|const|Const|continue|Continue|crate|Crate|else|Else|enum|Enum|extern|Extern|false|False|fn|Fn|for|For|if|If|impl|Impl|in|In|let|Let|loop|Loop|match|Match|mod|Mod|move|Move|mut|Mut|pub|Pub|ref|Ref|return|Return|Self|self|static|Static|struct|Struct|super|Super|trait|Trait|true|True|type|Type|unsafe|Unsafe|use|Use|where|Where|while|While|async|Async|await|Await|dyn|Dyn|abstract|Abstract|become|Become|box|Box|do|Do|final|Final|macro|Macro|override|Override|priv|Priv|typeof|Typeof|unsized|Unsized|virtual|Virtual|yield|Yield|try|Try|gen|Gen)$)[A-Z][A-Za-z0-9]{1,63}$"
           },
           "pdaPrefix": {
             "type": "string",
