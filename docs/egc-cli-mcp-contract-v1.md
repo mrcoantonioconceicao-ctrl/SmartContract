@@ -110,7 +110,7 @@ UTF-16 code units combined, counting string values and object property names
 |---|---|---|
 | `egc_contract_catalog` | `{}` | Version, command input/output JSON Schemas, error codes, measurement descriptions |
 | `generate_anchor_contract` | Optional `programName`, `accountName`, `pdaPrefix`, `hasCheckedMath`, `hasSignerCheck`, `includeCloseInstruction` | Generated Rust, account byte sizing, guards detected in emitted source, AST audit preview; rent lamports use the generator formula, not an RPC quote |
-| `audit_rust_ast` | Required `sourceCode` (field maximum 200,000 UTF-16 code units; the combined input limit also counts its property key) | Rule counts, findings, account sizing/PDA checks, audit timestamp |
+| `audit_rust_ast` | Required `sourceCode` (field minimum 1 and maximum 200,000 UTF-16 code units; the combined input limit also counts its property key) | Rule counts, findings, account sizing/PDA checks, audit timestamp |
 | `create_github_pr` | Required `token`, `owner`, `repoName`; optional `branchName`, `title`, `body`, `contractCode` | PR URL/number, open/manual-merge state; no PAT |
 | `audit_anchor_ast` | Same as `audit_rust_ast` | Same audit output; compatibility alias |
 | `run_property_fuzzer` | Optional `vectorCount` (1-20,000), math/signer flags | Executed vectors, invariant results, elapsed time, categories and edge cases |

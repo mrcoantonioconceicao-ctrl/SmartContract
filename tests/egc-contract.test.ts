@@ -129,6 +129,16 @@ async function main() {
     );
   }
   assert.equal(
+    EGC_V1_COMMANDS.generate_anchor_contract.inputSchema.safeParse({ programName: 'a' }).success,
+    true,
+    'One-character Rust module names remain supported',
+  );
+  assert.equal(
+    EGC_V1_COMMANDS.generate_anchor_contract.inputSchema.safeParse({ accountName: 'A' }).success,
+    true,
+    'One-character Rust account type names remain supported',
+  );
+  assert.equal(
     EGC_V1_COMMANDS.create_github_pr.inputSchema.safeParse({
       token: 'ghp_test_token',
       owner: 'owner/other',

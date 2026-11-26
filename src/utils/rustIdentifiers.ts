@@ -65,11 +65,11 @@ const accountKeywords = new Set(
 );
 
 export const RUST_MODULE_NAME_PATTERN = new RegExp(
-  `^(?!(?:${moduleKeywords.join('|')})$)[a-z][a-z0-9_]{1,63}$`,
+  `^(?!(?:${moduleKeywords.join('|')})$)[a-z][a-z0-9_]{0,63}$`,
 );
 
 export const RUST_ACCOUNT_NAME_PATTERN = new RegExp(
-  `^(?!(?:${[...accountKeywords].join('|')})$)[A-Z][A-Za-z0-9]{1,63}$`,
+  `^(?!(?:${[...accountKeywords].join('|')})$)[A-Z][A-Za-z0-9]{0,63}$`,
 );
 
 export function isRustIdentifier(value: string): boolean {
