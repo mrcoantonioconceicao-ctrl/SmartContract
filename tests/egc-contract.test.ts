@@ -168,6 +168,35 @@ async function main() {
     true,
     'Normal slash-separated branch names remain supported',
   );
+  assert.equal(
+    EGC_V1_COMMANDS.create_github_pr.inputSchema.safeParse({
+      token: 'ghp_test_token',
+      owner: 'valid-owner',
+      repoName: '.github',
+      branchName: 'head',
+    }).success,
+    true,
+    'Dot-prefixed repository names and lowercase head branch names remain supported',
+  );
+  assert.equal(
+    EGC_V1_COMMANDS.create_github_pr.inputSchema.safeParse({
+      token: 'ghp_test_token',
+      owner: 'valid-owner',
+      repoName: 'safe-repo',
+      branchName: 'feature/foo+bar@draft',
+    }).success,
+    true,
+    'Safe Git ref characters remain supported in branch names',
+  );
+  assert.equal(
+    EGC_V1_COMMANDS.create_github_pr.inputSchema.safeParse({
+      token: 'ghp_test_token',
+      owner: 'foo--bar',
+      repoName: 'safe-repo',
+    }).success,
+    false,
+    'GitHub owner names reject consecutive hyphens',
+  );
   await assert.rejects(
     () => createGitHubPullRequest({
       token: 'ghp_test_token',
