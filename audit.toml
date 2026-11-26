@@ -18,7 +18,6 @@ ignore = [
   "RUSTSEC-2024-0437", # curve25519-dalek legacy transitive
   "RUSTSEC-2026-0251", # sized-chunks 0.6.5 is transitively required by im 15.1.0 -> solana-frozen-abi 1.18.26 -> solana-program 1.18.26 for Solana 1.18.26 compatibility; not used at runtime on-chain in SBF/BPF.
   "RUSTSEC-2024-0344", # curve25519-dalek 3.2.1 -> solana-program 1.18.26 -> solana-sandbox-counter; >=4.1.3 requires changing the pinned Solana 1.18 dependency graph.
-  "RUSTSEC-2025-0141", # INFO: bincode 1.3.3 is unmaintained; Anchor 1.2.2 depends on it and upstream considers 1.3.3 complete. No patched release exists.
   "RUSTSEC-2026-0247", # bitmaps 2.1.0 -> sized-chunks 0.6.5 -> im 15.1.0 -> solana-frozen-abi 1.18.26 -> solana-program.
   "RUSTSEC-2024-0388", # derivative 2.2.0 -> ark-poly/ark-ec/ark-bn254 -> solana-program 1.18.26 and light-poseidon 0.2.0 -> solana-program.
   "RUSTSEC-2026-0248", # im 15.1.0 -> solana-frozen-abi 1.18.26 -> solana-program.

@@ -599,6 +599,7 @@ O repositorio implementa um padrao operacional rigoroso para prontidao instituci
 ### 14.2 Lockfile de Dependencias
 - O `Cargo.lock` versionado registra as versoes e checksums resolvidos para os dois programas Anchor.
 - O CI valida esse lockfile com `cargo check --locked --workspace` antes do build.
+- `RUSTSEC-2025-0141` nao e allowlisted: `bincode 1.3.3` permanece transitivo por Anchor 1.2.2; RustSec classifica o aviso como informativo e nao ha versao corrigida, portanto `cargo audit` deve continuar expondo-o.
 
 ### 14.3 Mecanismo de Auto-Cura na Esteira de CI (`.github/workflows/main.yml`)
 - Na etapa `Verify Cargo Dependencies & Lockfile`, o workflow implementa uma rotina de auto-recuperacao:
