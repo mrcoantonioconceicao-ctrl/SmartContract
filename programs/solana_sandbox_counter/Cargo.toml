@@ -17,4 +17,3 @@ default = []
 
 [dependencies]
 anchor-lang = "=1.2.2"
-solana-program = "=1.18.26"

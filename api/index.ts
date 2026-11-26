@@ -24,16 +24,21 @@ import { processSecurityAgentChat } from '../src/services/securityAgentService.t
 const app = express();
 app.use(express.json({ limit: '10mb' }));
 
+const ADMIN_KEYS = [process.env.ADMIN_API_KEY, process.env.MCP_API_KEY].filter(
+  (key): key is string => typeof key === 'string' && key.length > 0,
+);
+
+if (process.env.NODE_ENV === 'production' && ADMIN_KEYS.length === 0) {
+  throw new Error('ADMIN_API_KEY or MCP_API_KEY must be configured in production');
+}
+
 const requireAdminAuth: express.RequestHandler = (req, res, next) => {
-  const keys = [process.env.ADMIN_API_KEY, process.env.MCP_API_KEY].filter(
-    (key): key is string => typeof key === 'string' && key.length > 0,
-  );
   const authorization = req.get('authorization');
   const token = authorization?.toLowerCase().startsWith('bearer ')
     ? authorization.slice(7).trim()
     : req.get('x-api-key')?.trim();
   const tokenBuffer = token ? Buffer.from(token) : undefined;
-  const isValid = keys.reduce((valid, key) => {
+  const isValid = ADMIN_KEYS.reduce((valid, key) => {
     const keyBuffer = Buffer.from(key);
     return (
       (tokenBuffer && tokenBuffer.length === keyBuffer.length

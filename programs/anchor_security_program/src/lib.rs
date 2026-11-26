@@ -507,12 +507,12 @@ pub enum SecurityErrorCode {
     #[msg("Risk level must be between 0 (SECURE) and 4 (CRITICAL)")]
     InvalidRiskLevel,
 
-    #[msg("Target account must be a non-default executable program")]
-    InvalidTargetProgram,
-
     #[msg("Empty batch is not allowed")]
     EmptyBatchNotAllowed,
 
     #[msg("Batch size exceeds maximum limit of 5 items")]
     BatchSizeExceeded,
+
+    #[msg("Target account must be a non-default executable program")]
+    InvalidTargetProgram,
 }
