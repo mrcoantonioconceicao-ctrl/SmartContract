@@ -71,6 +71,23 @@ Stdio runs locally and does not use or disclose the HTTP administrative keys.
 Commands that access GitHub accept a PAT in their input; PAT values are not part
 of outputs, and errors/results are scrubbed for the supplied token.
 
+#### VS Code Copilot Agent
+
+This repository includes `.vscode/mcp.json`, which registers
+`smartcontract-egc` as a local stdio server:
+
+```text
+npx tsx src/mcp/cli.ts
+```
+
+Open the VS Code MCP server view, start `smartcontract-egc`, and use Copilot Agent
+mode to discover the versioned tools. Start with `egc_contract_catalog`, then use
+`audit_rust_ast` with source code or `scan_repository_ast` with explicit file data.
+Do not place PAT or administrative API key values in `.vscode/mcp.json`.
+
+The practical tasks are in `.vscode/tasks.json`: contract catalog, Rust AST audit,
+npm tests, TypeScript checking, build, Cargo formatting, and strict Clippy.
+
 ### CLI
 
 Existing aliases remain:
@@ -95,6 +112,15 @@ printf '%s' '{"sourceCode":"..."}' | npm run egc:cli -- audit_rust_ast --input-s
 editor configuration.
 The human-readable aliases also print the generated `correlationId` and
 `timestamp`; direct v1 command invocations print the full response envelope.
+
+## GraphRAG deterministic persistence
+
+Enterprise GraphRAG results are cached in `.egc/cache/graphrag/` in the workspace.
+The directory is ignored by Git. Each snapshot is JSON with a cache schema version,
+the SHA-256 hash of the canonical source and optional file inputs, and the SHA-256
+hash of the serialized graph result. A different input hash invalidates and replaces
+the snapshot automatically. Cache reads fail closed: malformed, mismatched, or
+outdated snapshots are ignored and recomputed from source.
 
 ## Command catalog
 

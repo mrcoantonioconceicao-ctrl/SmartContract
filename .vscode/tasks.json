@@ -1,0 +1,49 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "EGC: Contract Catalog",
+      "type": "shell",
+      "command": "npm run egc:cli -- egc_contract_catalog",
+      "problemMatcher": []
+    },
+    {
+      "label": "EGC: Audit Rust AST",
+      "type": "shell",
+      "command": "npm run egc:cli -- audit_rust_ast --input-stdin",
+      "problemMatcher": []
+    },
+    {
+      "label": "SmartContract: npm test",
+      "type": "shell",
+      "command": "npm test",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "SmartContract: TypeScript check",
+      "type": "shell",
+      "command": "npx tsc --noEmit",
+      "problemMatcher": ["$tsc"]
+    },
+    {
+      "label": "SmartContract: Build",
+      "type": "shell",
+      "command": "npm run build",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "SmartContract: Cargo fmt check",
+      "type": "shell",
+      "command": "cargo fmt --all -- --check",
+      "problemMatcher": []
+    },
+    {
+      "label": "SmartContract: Cargo clippy",
+      "type": "shell",
+      "command": "cargo clippy --workspace --all-targets -- -D warnings -A unexpected_cfgs",
+      "problemMatcher": []
+    }
+  ]
+}

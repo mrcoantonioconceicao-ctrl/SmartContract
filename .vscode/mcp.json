@@ -1,0 +1,9 @@
+{
+  "servers": {
+    "smartcontract-egc": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["tsx", "src/mcp/cli.ts"]
+    }
+  }
+}

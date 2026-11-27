@@ -22,4 +22,7 @@ deploy/
 # AI Studio artifacts
 .aistudio/
 
+# Deterministic local GraphRAG snapshots
+.egc/
+
 
