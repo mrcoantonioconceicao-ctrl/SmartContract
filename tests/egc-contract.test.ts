@@ -380,6 +380,21 @@ async function main() {
       assert.equal(invalidEnvelope.success, false);
       assert.equal(invalidEnvelope.error.code, 'INVALID_INPUT');
       assert.equal(invalidEnvelope.correlationId, correlationId);
+
+      for (const [method, path] of [
+        ['GET', '/api/egc/physical-files'],
+        ['POST', '/api/egc/scan'],
+      ] as const) {
+        let limitedResponse: Response | null = null;
+        for (let requestIndex = 0; requestIndex < 31; requestIndex += 1) {
+          limitedResponse = await fetch(`${baseUrl}${path}`, {
+            method,
+            headers: { ...adminHeader, 'content-type': 'application/json' },
+            ...(method === 'POST' ? { body: JSON.stringify({ files: [] }) } : {}),
+          });
+        }
+        assert.equal(limitedResponse?.status, 429, `${method} ${path} is rate-limited`);
+      }
     });
   }
 

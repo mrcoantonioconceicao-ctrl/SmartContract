@@ -296,7 +296,7 @@ app.get('/api/soa/catalog', (_req, res) => {
 
 // 6. EGC Physical Files Inspection Endpoint (Zero Mocks)
 // Autoria: Marco Antonio Conceicao
-app.get('/api/egc/physical-files', requireAdminOrMcpAuth, (_req, res) => {
+app.get('/api/egc/physical-files', requireAdminOrMcpAuth, auditRateLimiter, (_req, res) => {
   try {
     const candidatePaths = [
       'programs/anchor_security_program/src/lib.rs',

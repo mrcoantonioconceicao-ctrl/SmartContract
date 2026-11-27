@@ -6,6 +6,7 @@
  */
 
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import { timingSafeEqual } from 'node:crypto';
 import fs from 'fs';
 import path from 'path';
@@ -33,6 +34,23 @@ import {
 
 const app = express();
 app.use(express.json({ limit: MAX_HTTP_JSON_BODY_BYTES }));
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+const auditRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: 'Limite de requisicoes de auditoria excedido (maximo 30 requisicoes/minuto).',
+  },
+});
+app.use('/api/', apiLimiter);
 
 const ADMIN_KEYS = [process.env.ADMIN_API_KEY, process.env.MCP_API_KEY].filter(
   (key): key is string => typeof key === 'string' && key.length > 0,
@@ -201,7 +219,7 @@ app.get('/api/soa/catalog', (_req, res) => {
 
 // 7. EGC Physical Files Inspection Endpoint (Zero Mocks)
 // Autoria: Marco Antonio Conceicao
-app.get('/api/egc/physical-files', requireAdminAuth, (_req, res) => {
+app.get('/api/egc/physical-files', requireAdminAuth, auditRateLimiter, (_req, res) => {
   try {
     const candidatePaths = [
       'programs/anchor_security_program/src/lib.rs',
@@ -233,7 +251,7 @@ app.get('/api/egc/physical-files', requireAdminAuth, (_req, res) => {
 });
 
 // 8. EGC Deep Repository & AST Scan Endpoint
-app.post('/api/egc/scan', requireAdminAuth, (req, res) => {
+app.post('/api/egc/scan', requireAdminAuth, auditRateLimiter, (req, res) => {
   try {
     let files = req.body?.files;
     if (!files || !Array.isArray(files) || files.length === 0) {
