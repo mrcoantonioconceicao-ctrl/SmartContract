@@ -18,6 +18,11 @@
  */
 
 import { GraphNode, GraphEdge, AttackPath, GraphRagAnalysisResult } from './graphRAGService.ts';
+import {
+  hashGraphRagInputs,
+  readGraphRagSnapshot,
+  writeGraphRagSnapshot,
+} from './graphragCache.ts';
 
 export type EnterpriseEntityType =
   | 'CONTRACT'
@@ -46,6 +51,20 @@ export interface EnterpriseKnowledgeNode extends GraphNode {
     outDegree: number;
     centralityScore: number;
   };
+}
+
+export function buildEnterpriseKnowledgeGraph(
+  sourceCode: string,
+  extraFiles?: Array<{ path: string; content: string }>,
+): EnterpriseGraphRagResult {
+  const sourceHash = hashGraphRagInputs(sourceCode, extraFiles);
+  const snapshot = readGraphRagSnapshot(sourceHash);
+  if (snapshot) {
+    return snapshot.result as EnterpriseGraphRagResult;
+  }
+  const result = buildEnterpriseKnowledgeGraphUncached(sourceCode, extraFiles);
+  writeGraphRagSnapshot(sourceHash, result);
+  return result;
 }
 
 export interface EnterpriseKnowledgeEdge extends GraphEdge {
@@ -86,7 +105,7 @@ export interface EnterpriseGraphRagResult extends GraphRagAnalysisResult {
 /**
  * Construtor do Grafo de Conhecimento Dinamico GraphRAG Enterprise
  */
-export function buildEnterpriseKnowledgeGraph(
+function buildEnterpriseKnowledgeGraphUncached(
   sourceCode: string,
   extraFiles?: Array<{ path: string; content: string }>
 ): EnterpriseGraphRagResult {
@@ -447,7 +466,7 @@ export function buildEnterpriseKnowledgeGraph(
         'Transacao falha imediatamente e lamelas permanecem intocadas',
       ],
       mitigationInContract: 'Guarda close(authority) restrita a autoridade original cadastrada no PDA',
-      status: (hasSigner && hasHasOne) ? 'MITIGATED' : 'EXPLOITABLE',
+      status: hasRentExempt49B ? 'MITIGATED' : 'EXPLOITABLE',
     },
   ];
 
