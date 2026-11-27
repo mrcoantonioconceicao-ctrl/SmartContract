@@ -6,6 +6,7 @@
  */
 
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import { timingSafeEqual } from 'node:crypto';
 import fs from 'fs';
 import path from 'path';
@@ -20,9 +21,36 @@ import { createRealGitHubIssues } from '../src/services/githubIssueService.ts';
 import { purgeEgcState } from '../src/services/egcStateManager.ts';
 import { getLearningState, recordPrFeedbackEvent } from '../src/services/continuousLearningEngine.ts';
 import { processSecurityAgentChat } from '../src/services/securityAgentService.ts';
+import {
+  EgcV1ExecuteRequestSchema,
+  createEgcV1ErrorResponse,
+  getEgcV1Catalog,
+  MAX_HTTP_JSON_BODY_BYTES,
+} from '../src/contracts/v1/index.ts';
+import {
+  executeEgcContractCommand,
+  getEgcV1HttpStatus,
+} from '../src/application/egcCommandService.ts';
 
 const app = express();
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: MAX_HTTP_JSON_BODY_BYTES }));
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+const auditRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: 'Limite de requisicoes de auditoria excedido (maximo 30 requisicoes/minuto).',
+  },
+});
+app.use('/api/', apiLimiter);
 
 const ADMIN_KEYS = [process.env.ADMIN_API_KEY, process.env.MCP_API_KEY].filter(
   (key): key is string => typeof key === 'string' && key.length > 0,
@@ -86,6 +114,8 @@ app.post('/api/github/sync', requireAdminAuth, async (req, res) => {
       ? 404
       : msg.includes('422')
       ? 422
+      : msg.includes('unsupported or invalid')
+      ? 400
       : msg.includes('obrigatorio') || msg.includes('obrigatório')
       ? 400
       : 500;
@@ -97,7 +127,7 @@ app.post('/api/github/sync', requireAdminAuth, async (req, res) => {
 });
 
 // 2. Model Context Protocol (MCP) Manifest & Tool Discovery Endpoint
-app.get('/api/mcp/manifest', (_req, res) => {
+app.get('/api/mcp/manifest', requireAdminAuth, (_req, res) => {
   res.json({
     name: 'solana-anchor-devsecops-mcp',
     version: '1.0.0',
@@ -105,6 +135,37 @@ app.get('/api/mcp/manifest', (_req, res) => {
     protocolVersion: '2024-11-05',
     tools: MCP_TOOLS,
   });
+});
+
+app.get('/api/v1/contract', requireAdminAuth, (_req, res) => {
+  res.json(getEgcV1Catalog());
+});
+
+app.post('/api/v1/execute', requireAdminAuth, async (req, res) => {
+  const parsed = EgcV1ExecuteRequestSchema.safeParse(req.body);
+  if (!parsed.success) {
+    const response = createEgcV1ErrorResponse(
+      'INVALID_INPUT',
+      'Request does not match the v1 execution envelope.',
+      {
+        command: typeof req.body?.command === 'string' ? req.body.command : undefined,
+        correlationId: typeof req.body?.correlationId === 'string' ? req.body.correlationId : undefined,
+        issues: parsed.error.issues.map(issue => ({
+          path: issue.path.map(part => typeof part === 'number' ? part : String(part)),
+          code: issue.code,
+          message: issue.message,
+        })),
+      },
+    );
+    return res.status(400).json(response);
+  }
+
+  const response = await executeEgcContractCommand(
+    parsed.data.command,
+    parsed.data.input,
+    parsed.data.correlationId,
+  );
+  return res.status(getEgcV1HttpStatus(response)).json(response);
 });
 
 // 3. Model Context Protocol (MCP) Tool Execution Endpoint
@@ -158,7 +219,7 @@ app.get('/api/soa/catalog', (_req, res) => {
 
 // 7. EGC Physical Files Inspection Endpoint (Zero Mocks)
 // Autoria: Marco Antonio Conceicao
-app.get('/api/egc/physical-files', (_req, res) => {
+app.get('/api/egc/physical-files', requireAdminAuth, auditRateLimiter, (_req, res) => {
   try {
     const candidatePaths = [
       'programs/anchor_security_program/src/lib.rs',
@@ -190,7 +251,7 @@ app.get('/api/egc/physical-files', (_req, res) => {
 });
 
 // 8. EGC Deep Repository & AST Scan Endpoint
-app.post('/api/egc/scan', (req, res) => {
+app.post('/api/egc/scan', requireAdminAuth, auditRateLimiter, (req, res) => {
   try {
     let files = req.body?.files;
     if (!files || !Array.isArray(files) || files.length === 0) {
@@ -217,7 +278,7 @@ app.post('/api/egc/scan', (req, res) => {
 });
 
 // 9. GitHub Real Issues Creation Endpoint
-app.post('/api/github/issues', async (req, res) => {
+app.post('/api/github/issues', requireAdminAuth, async (req, res) => {
   try {
     const { token, owner, repoName, findings } = req.body;
     const result = await createRealGitHubIssues({
@@ -235,7 +296,7 @@ app.post('/api/github/issues', async (req, res) => {
 });
 
 // 10. EGC State Clean & Auto-Purge Endpoint (egc clean)
-app.post('/api/egc/clean', (_req, res) => {
+app.post('/api/egc/clean', requireAdminAuth, (_req, res) => {
   try {
     const result = purgeEgcState();
     res.json(result);
@@ -254,7 +315,7 @@ app.get('/api/learning/state', (_req, res) => {
   }
 });
 
-app.post('/api/learning/feedback', (req, res) => {
+app.post('/api/learning/feedback', requireAdminAuth, (req, res) => {
   try {
     const { source, ruleId, repository, deltaWeight, explanation } = req.body;
     if (!ruleId) {

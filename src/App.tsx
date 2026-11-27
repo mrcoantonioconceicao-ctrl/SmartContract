@@ -276,21 +276,8 @@ pub struct UserCounter { pub authority: Pubkey, pub count: u64, pub bump: u8 }`;
         explanation: `Correcao validada pelo desenvolvedor no editor AST: ${finding.title}`,
       });
 
-      // Tenta sincronizar com o backend
-      fetch('/api/learning/feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          source: 'MANUAL_FEEDBACK',
-          ruleId: finding.ruleId,
-          repository: 'SolanaAnchorWorkspace',
-          deltaWeight: +3,
-          explanation: `Correcao validada pelo desenvolvedor no editor AST: ${finding.title}`,
-        }),
-      }).catch(() => {});
-
       const newWeight = updatedState.weights[finding.ruleId]?.weight || 35;
-      setLearningFeedbackNotice(`Peso da regra [${finding.ruleId}] refinado para ${newWeight} pts (+3 pts de rigor). Memoria persistida com sucesso.`);
+      setLearningFeedbackNotice(`Peso da regra [${finding.ruleId}] refinado para ${newWeight} pts (+3 pts de rigor). Memoria local atualizada; sincronizacao remota requer sessao administrativa.`);
       setTimeout(() => setLearningFeedbackNotice(null), 5000);
     } catch {
       // Ignora silenciosamente caso storage esteja bloqueado
@@ -337,8 +324,9 @@ pub struct UserCounter { pub authority: Pubkey, pub count: u64, pub bump: u8 }`;
       if (selectedMcpTool === 'generate_anchor_contract') {
         args = {
           programName: 'solana_sandbox_counter',
-          description: 'Secure Solana Counter with checked math and authority isolation',
-          features: ['checked_math', 'pda_derivation', 'has_one_guard', 'close_instruction']
+          accountName: 'UserCounter',
+          pdaPrefix: 'counter',
+          includeCloseInstruction: true,
         };
       } else if (selectedMcpTool === 'audit_rust_ast' || selectedMcpTool === 'audit_anchor_ast') {
         args = { sourceCode: activeRustCode };
@@ -1127,7 +1115,7 @@ pub struct UserCounter { pub authority: Pubkey, pub count: u64, pub bump: u8 }`;
                   <span>Orquestrador de Processos BPMN 2.0 (Solana Anchor DevSecOps)</span>
                 </h3>
                 <p className="text-xs text-slate-400 mt-1">
-                  Mapeia os portões de qualidade de código, checagem de invariantes e geração atómica de Pull Request em conformidade com o padrão OMG.
+                  Representa o fluxo implementado de entrada, validação, scan, GitHub, PDF e limpeza condicional. O status indica apenas que este é um modelo, não uma execução.
                 </p>
               </div>
 
@@ -1148,7 +1136,7 @@ pub struct UserCounter { pub authority: Pubkey, pub count: u64, pub bump: u8 }`;
                     <span className="text-[11px] font-mono text-cyan-400 bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800/30">
                       Passo {idx + 1}: {task.type}
                     </span>
-                    <span className="text-[10px] text-emerald-400 font-mono font-bold">{task.status}</span>
+                    <span className="text-[10px] text-slate-400 font-mono font-bold">{task.status}</span>
                   </div>
                   <h4 className="text-xs font-semibold text-slate-200 mt-1">{task.name}</h4>
                   <p className="text-[11px] text-slate-400 leading-relaxed">{task.description}</p>
@@ -1574,20 +1562,8 @@ pub struct UserCounter { pub authority: Pubkey, pub count: u64, pub bump: u8 }`;
                 explanation: `Correcao validada pelo desenvolvedor via Preview Diff: ${previewFinding.title}`,
               });
 
-              fetch('/api/learning/feedback', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  source: 'MANUAL_FEEDBACK',
-                  ruleId: previewFinding.ruleId,
-                  repository: 'SolanaAnchorWorkspace',
-                  deltaWeight: +3,
-                  explanation: `Correcao validada pelo desenvolvedor via Preview Diff: ${previewFinding.title}`,
-                }),
-              }).catch(() => {});
-
               const newWeight = updatedState.weights[previewFinding.ruleId]?.weight || 35;
-              setLearningFeedbackNotice(`Peso da regra [${previewFinding.ruleId}] refinado para ${newWeight} pts (+3 pts de rigor). Memoria persistida com sucesso.`);
+              setLearningFeedbackNotice(`Peso da regra [${previewFinding.ruleId}] refinado para ${newWeight} pts (+3 pts de rigor). Memoria local atualizada; sincronizacao remota requer sessao administrativa.`);
               setTimeout(() => setLearningFeedbackNotice(null), 5000);
             } catch {
               // Silencioso se storage falhar

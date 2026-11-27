@@ -21,6 +21,16 @@ import { createRealGitHubIssues } from './src/services/githubIssueService.ts';
 import { purgeEgcState } from './src/services/egcStateManager.ts';
 import { getLearningState, recordPrFeedbackEvent } from './src/services/continuousLearningEngine.ts';
 import { processSecurityAgentChat } from './src/services/securityAgentService.ts';
+import {
+  EgcV1ExecuteRequestSchema,
+  createEgcV1ErrorResponse,
+  getEgcV1Catalog,
+  MAX_HTTP_JSON_BODY_BYTES,
+} from './src/contracts/v1/index.ts';
+import {
+  executeEgcContractCommand,
+  getEgcV1HttpStatus,
+} from './src/application/egcCommandService.ts';
 
 dotenv.config();
 
@@ -31,8 +41,8 @@ const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 const isProduction = process.env.NODE_ENV === 'production';
 
-// Reduz limite de payload JSON para 2mb para mitigar riscos de Denial of Service (DoS)
-app.use(express.json({ limit: '2mb' }));
+// Keep the HTTP body cap aligned with the v1 aggregate input budget.
+app.use(express.json({ limit: MAX_HTTP_JSON_BODY_BYTES }));
 const apiLimiter = rateLimit({
  windowMs: 15 * 60 * 1000,
  max: 100,
@@ -185,7 +195,7 @@ app.post('/api/github/sync', requireAdminOrMcpAuth, async (req, res) => {
     return res.json(result);
   } catch (error: any) {
     const msg = error.message || 'Falha ao processar sincronizacao com o GitHub';
-    const status = msg.includes('401') ? 401 : msg.includes('404') ? 404 : msg.includes('422') ? 422 : msg.includes('obrigatorio') || msg.includes('obrigatório') ? 400 : 500;
+    const status = msg.includes('401') ? 401 : msg.includes('404') ? 404 : msg.includes('422') ? 422 : msg.includes('unsupported or invalid') || msg.includes('obrigatorio') || msg.includes('obrigatório') ? 400 : 500;
     return res.status(status).json({
       success: false,
       error: msg,
@@ -202,6 +212,37 @@ app.get('/api/mcp/manifest', requireAdminOrMcpAuth, (_req, res) => {
     protocolVersion: '2024-11-05',
     tools: MCP_TOOLS,
   });
+});
+
+app.get('/api/v1/contract', requireAdminOrMcpAuth, (_req, res) => {
+  res.json(getEgcV1Catalog());
+});
+
+app.post('/api/v1/execute', requireAdminOrMcpAuth, async (req, res) => {
+  const parsed = EgcV1ExecuteRequestSchema.safeParse(req.body);
+  if (!parsed.success) {
+    const response = createEgcV1ErrorResponse(
+      'INVALID_INPUT',
+      'Request does not match the v1 execution envelope.',
+      {
+        command: typeof req.body?.command === 'string' ? req.body.command : undefined,
+        correlationId: typeof req.body?.correlationId === 'string' ? req.body.correlationId : undefined,
+        issues: parsed.error.issues.map(issue => ({
+          path: issue.path.map(part => typeof part === 'number' ? part : String(part)),
+          code: issue.code,
+          message: issue.message,
+        })),
+      },
+    );
+    return res.status(400).json(response);
+  }
+
+  const response = await executeEgcContractCommand(
+    parsed.data.command,
+    parsed.data.input,
+    parsed.data.correlationId,
+  );
+  return res.status(getEgcV1HttpStatus(response)).json(response);
 });
 
 // 3. Model Context Protocol (MCP) Tool Execution Endpoint
@@ -255,7 +296,7 @@ app.get('/api/soa/catalog', (_req, res) => {
 
 // 6. EGC Physical Files Inspection Endpoint (Zero Mocks)
 // Autoria: Marco Antonio Conceicao
-app.get('/api/egc/physical-files', requireAdminOrMcpAuth, (_req, res) => {
+app.get('/api/egc/physical-files', requireAdminOrMcpAuth, auditRateLimiter, (_req, res) => {
   try {
     const candidatePaths = [
       'programs/anchor_security_program/src/lib.rs',
@@ -287,7 +328,7 @@ app.get('/api/egc/physical-files', requireAdminOrMcpAuth, (_req, res) => {
 });
 
 // 7. EGC Deep Repository & AST Scan Endpoint
-app.post('/api/egc/scan', apiLimiter, auditRateLimiter, (req, res) => {
+app.post('/api/egc/scan', requireAdminOrMcpAuth, apiLimiter, auditRateLimiter, (req, res) => {
   try {
     let files = req.body?.files;
     if (!files || !Array.isArray(files) || files.length === 0) {
@@ -598,4 +639,9 @@ async function startServer() {
   });
 }
 
-startServer();
+export { app };
+export default app;
+
+if (process.env.EGC_DISABLE_LISTEN !== '1') {
+  startServer();
+}

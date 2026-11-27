@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { GitHubPipelinePayload } from '../../client/index.ts';
 import { runSecurityLintAudit, SecurityLintFinding } from '../services/securityLintingService.ts';
+import { ADMIN_UI_ACTIONS_ENABLED } from '../utils/adminUiAccess.ts';
 
 interface GitHubSyncModalProps {
   isOpen: boolean;
@@ -64,8 +65,9 @@ export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSync
   const [lintErrorCount, setLintErrorCount] = useState<number>(0);
 
   // Git Pre-Commit Hook Management State
-  const [hookInstalled, setHookInstalled] = useState<boolean>(true);
-  const [hookAuditStrictActive, setHookAuditStrictActive] = useState<boolean>(true);
+  const [hookInstalled, setHookInstalled] = useState<boolean>(false);
+  const [hookAuditStrictActive, setHookAuditStrictActive] = useState<boolean>(false);
+  const [hookStatusAvailable, setHookStatusAvailable] = useState<boolean>(false);
   const [hookActionLoading, setHookActionLoading] = useState<boolean>(false);
   const [hookFeedbackMessage, setHookFeedbackMessage] = useState<string>('');
 
@@ -79,13 +81,25 @@ export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSync
     async function checkHookStatus() {
       try {
         const res = await fetch('/api/git-hooks/status');
+        if (!res.ok) throw new Error('Hook status is unavailable in this deployment.');
         const data = await res.json();
-        if (isMounted && data.success) {
+        if (
+          isMounted &&
+          data.success === true &&
+          typeof data.installed === 'boolean' &&
+          typeof data.isAuditStrictActive === 'boolean'
+        ) {
+          setHookStatusAvailable(true);
           setHookInstalled(data.installed);
           setHookAuditStrictActive(data.isAuditStrictActive);
+        } else if (isMounted) {
+          throw new Error('Hook status response is invalid.');
         }
       } catch {
-        // Fallback em caso de offline
+        if (isMounted) {
+          setHookStatusAvailable(false);
+          setHookFeedbackMessage('Status de hooks indisponível neste servidor.');
+        }
       }
     }
     checkHookStatus();
@@ -93,6 +107,15 @@ export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSync
   }, []);
 
   const handleToggleHook = async () => {
+    if (!ADMIN_UI_ACTIONS_ENABLED) {
+      setHookFeedbackMessage('Ações administrativas desativadas até existir uma sessão autenticada no servidor.');
+      return;
+    }
+    if (!hookStatusAvailable) {
+      setHookFeedbackMessage('A gestão de hooks não está disponível neste servidor.');
+      return;
+    }
+
     setHookActionLoading(true);
     setHookFeedbackMessage('');
     try {
@@ -165,6 +188,7 @@ export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSync
   const hasSecurityViolations = !prePushReport.passed || prePushReport.errorCount > 0;
 
   const isFormValid = Boolean(
+    ADMIN_UI_ACTIONS_ENABLED &&
     cleanOwner &&
     cleanRepo &&
     cleanToken &&
@@ -173,6 +197,12 @@ export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSync
   );
 
   const handleStartSync = async () => {
+    if (!ADMIN_UI_ACTIONS_ENABLED) {
+      setErrorMessage('A sincronização está desativada até existir uma sessão administrativa autenticada no servidor.');
+      setSyncStep('error');
+      return;
+    }
+
     // 1. Mandatory Token Validation
     if (!cleanToken) {
       setErrorMessage('GitHub Personal Access Token (PAT) é OBRIGATÓRIO. Introduza o seu token antes de sincronizar.');
@@ -309,6 +339,13 @@ export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSync
         <div className="p-5 overflow-y-auto space-y-4 text-xs font-mono touch-scroll">
           {syncStep === 'idle' && (
             <>
+              {!ADMIN_UI_ACTIONS_ENABLED && (
+                <div role="status" className="p-3 rounded-lg bg-amber-950/40 border border-amber-800/60 text-amber-200">
+                  Ações administrativas desativadas: esta interface não possui uma sessão autenticada no servidor.
+                  Nenhuma chave administrativa será enviada pelo navegador.
+                </div>
+              )}
+
               {/* Dynamic Target Preview Bar */}
               <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-between text-[11px]">
                 <span className="text-slate-400 flex items-center gap-1.5">
@@ -401,11 +438,26 @@ export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSync
                             ? 'bg-emerald-900/60 text-emerald-300 border border-emerald-700/50'
                             : 'bg-slate-800 text-slate-400'
                         }`}>
-                          {hookInstalled ? 'HOOK ATIVO (.git/hooks)' : 'DESATIVADO'}
+                          {!hookStatusAvailable
+                            ? 'STATUS INDISPONÍVEL'
+                            : hookInstalled
+                            ? 'HOOK ATIVO (.git/hooks)'
+                            : 'DESATIVADO'}
                         </span>
                       </div>
                       <p className="text-[10px] text-slate-400 mt-0.5">
                         Executa o <code className="text-purple-300">securityLintingService.ts</code> (audit_strict) antes de cada commit local.
+                      </p>
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        {hookStatusAvailable
+                          ? hookAuditStrictActive
+                            ? 'Perfil audit_strict ativo.'
+                            : 'Perfil audit_strict inativo.'
+                          : 'Status de hooks indisponível neste servidor.'}
+                        {' '}Ações administrativas exigem uma sessão autenticada no servidor.
+                      </p>
+                      <p className="text-[10px] text-amber-300 mt-1">
+                        Ações administrativas desativadas até existir uma sessão autenticada no servidor.
                       </p>
                     </div>
                   </div>
@@ -413,7 +465,8 @@ export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSync
                   <button
                     type="button"
                     onClick={handleToggleHook}
-                    disabled={hookActionLoading}
+                    disabled={hookActionLoading || !hookStatusAvailable || !ADMIN_UI_ACTIONS_ENABLED}
+                    title="Requer sessão administrativa autenticada no servidor."
                     className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition-all ${
                       hookInstalled
                         ? 'bg-rose-950/60 hover:bg-rose-900/60 text-rose-300 border border-rose-800/60'
@@ -427,7 +480,13 @@ export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSync
                     ) : (
                       <Check className="w-3 h-3" />
                     )}
-                    <span>{hookInstalled ? 'Desativar Hook' : 'Instalar Hook'}</span>
+                    <span>
+                      {!ADMIN_UI_ACTIONS_ENABLED
+                        ? 'Ação desativada'
+                        : hookInstalled
+                        ? 'Desativar Hook'
+                        : 'Instalar Hook'}
+                    </span>
                   </button>
                 </div>
 
@@ -514,6 +573,7 @@ export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSync
                   placeholder="ghp_xxxxxxxxxxxx ou github_pat_xxxxxxxxxxxx"
                   value={token}
                   onChange={(e) => handleTokenChange(e.target.value)}
+                  disabled={!ADMIN_UI_ACTIONS_ENABLED}
                   className={`w-full bg-slate-950 border ${!cleanToken ? 'border-rose-900/60 focus:border-rose-500' : 'border-slate-800 focus:border-purple-500'} rounded-lg px-3 py-2 text-slate-300 focus:outline-none transition-colors`}
                   required
                 />
@@ -695,7 +755,9 @@ export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSync
                     : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700/50'
                 }`}
                 title={
-                  hasSecurityViolations
+                  !ADMIN_UI_ACTIONS_ENABLED
+                    ? 'Aguarde a implementação de uma sessão administrativa autenticada no servidor'
+                    : hasSecurityViolations
                     ? `Bloqueado por Seguranca: ${prePushReport.errorCount} violacao(oes) no perfil audit_strict`
                     : !cleanToken
                     ? 'GitHub Personal Access Token e OBRIGATORIO'
@@ -706,7 +768,9 @@ export function GitHubSyncModal({ isOpen, onClose, pipelinePayload }: GitHubSync
               >
                 <Send className="w-3.5 h-3.5" />
                 <span>
-                  {hasSecurityViolations
+                  {!ADMIN_UI_ACTIONS_ENABLED
+                    ? 'Sessão administrativa indisponível'
+                    : hasSecurityViolations
                     ? 'Submissao Bloqueada (Violações audit_strict)'
                     : `Abrir Pull Request (Status Open) em ${cleanRepo || 'Repositório'}`}
                 </span>

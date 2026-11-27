@@ -18,6 +18,11 @@ export interface GitHubCommitFile {
 }
 
 import { recordPrFeedbackEvent } from './continuousLearningEngine.ts';
+import {
+  isValidGitHubBranchName,
+  isValidGitHubOwner,
+  isValidGitHubRepositoryName,
+} from '../utils/githubIdentifiers.ts';
 
 export interface CreateGitHubPrOptions {
   token: string;
@@ -129,6 +134,9 @@ async function ensureRemoteBranchAndCommits(
 
   const defaultBranch = repoRes.data.default_branch || 'main';
   const resolvedBase = (baseBranch || defaultBranch).trim();
+  if (!isValidGitHubBranchName(resolvedBase)) {
+    throw new Error('The GitHub base branch has an unsupported or invalid name.');
+  }
 
   // 2. Obter o SHA do commit mais recente no ramo base
   const baseRefRes = await fetchGitHubApi(`https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${resolvedBase}`, token);
@@ -314,9 +322,22 @@ export async function createGitHubPullRequest(options: CreateGitHubPrOptions): P
   if (!targetOwner) {
     throw new Error('O utilizador ou organização do GitHub é obrigatório.');
   }
+  if (!isValidGitHubOwner(targetOwner)) {
+    throw new Error('The GitHub owner has an unsupported or invalid name.');
+  }
 
   if (!targetRepo) {
     throw new Error('O nome do repositório de destino é obrigatório.');
+  }
+  if (!isValidGitHubRepositoryName(targetRepo)) {
+    throw new Error('The GitHub repository name has an unsupported or invalid format.');
+  }
+  if (!isValidGitHubBranchName(targetHeadBranch)) {
+    throw new Error('The GitHub branch name has an unsupported or invalid format.');
+  }
+  const requestedBaseBranch = (baseBranch || 'main').trim();
+  if (!isValidGitHubBranchName(requestedBaseBranch)) {
+    throw new Error('The GitHub base branch has an unsupported or invalid format.');
   }
 
   // 2. Montar lista de arquivos para envio
@@ -339,15 +360,20 @@ export async function createGitHubPullRequest(options: CreateGitHubPrOptions): P
     targetOwner,
     targetRepo,
     targetHeadBranch,
-    baseBranch || 'main',
+    requestedBaseBranch,
     filesToCommit,
     commitMessage
   );
 
   // 4. Verificar se ja existe um Pull Request aberto para este ramo
+  const pullRequestQuery = new URLSearchParams({
+    head: `${targetOwner}:${targetHeadBranch}`,
+    base: resolvedBase,
+    state: 'open',
+  });
   const existingPrRes = await fetchGitHubApi(
-    `https://api.github.com/repos/${targetOwner}/${targetRepo}/pulls?head=${targetOwner}:${targetHeadBranch}&base=${resolvedBase}&state=open`,
-    trimmedToken
+    `https://api.github.com/repos/${targetOwner}/${targetRepo}/pulls?${pullRequestQuery}`,
+    trimmedToken,
   );
 
   if (existingPrRes.ok && Array.isArray(existingPrRes.data) && existingPrRes.data.length > 0) {

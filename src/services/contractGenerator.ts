@@ -3,6 +3,12 @@
  * Supports customized business rules with DevSecOps constraints
  */
 
+import {
+  isRustAccountTypeName,
+  isRustIdentifier,
+  isRustModuleName,
+} from '../utils/rustIdentifiers.ts';
+
 export interface CustomField {
   name: string;
   rustType: 'u64' | 'u32' | 'u8' | 'i64' | 'Pubkey' | 'bool' | 'String';
@@ -23,6 +29,7 @@ export interface ContractTemplateConfig {
   programName: string;
   accountName: string;
   pdaPrefix: string;
+  includeCloseInstruction?: boolean;
   fields: CustomField[];
   instructions: CustomInstructionRule[];
 }
@@ -72,7 +79,51 @@ export function calculateAccountSpace(fields: CustomField[]): {
  * Generates modular Rust Anchor code with DevSecOps AST & security guards
  */
 export function generateModularAnchorContract(config: ContractTemplateConfig): string {
+  if (!isRustModuleName(config.programName)) {
+    throw new Error('programName must be a valid Rust module identifier.');
+  }
+  if (!isRustAccountTypeName(config.accountName)) {
+    throw new Error('accountName and its derived account field must be valid Rust identifiers.');
+  }
+  if (!/^[A-Za-z0-9_-]{1,32}$/.test(config.pdaPrefix)) {
+    throw new Error('pdaPrefix contains characters that are unsafe in a Rust byte string.');
+  }
+  for (const field of config.fields) {
+    if (!isRustIdentifier(field.name)) {
+      throw new Error(`Field name "${field.name}" must be a valid non-reserved Rust identifier.`);
+    }
+    if (/[\r\n\u2028\u2029]/.test(field.description)) {
+      throw new Error(`Field description for "${field.name}" must be a single line.`);
+    }
+  }
+
   const { totalBytes } = calculateAccountSpace(config.fields);
+  const closeInstruction = config.includeCloseInstruction === false
+    ? ''
+    : `    /// Closes the PDA and transfers rent lamports back to the signer authority.
+    pub fn close(ctx: Context<CloseAccount>) -> Result<()> {
+        msg!("PDA account safely closed. Rent refunded to: {}", ctx.accounts.authority.key());
+        Ok(())
+    }
+`;
+  const closeAccountContext = config.includeCloseInstruction === false
+    ? ''
+    : `#[derive(Accounts)]
+pub struct CloseAccount<'info> {
+    #[account(
+        mut,
+        seeds = [b"${config.pdaPrefix}", authority.key().as_ref()],
+        bump = ${config.accountName.toLowerCase()}.bump,
+        has_one = authority @ SecurityErrorCode::UnauthorizedAuthority,
+        close = authority
+    )]
+    pub ${config.accountName.toLowerCase()}: Account<'info, ${config.accountName}>,
+
+    #[account(mut)]
+    pub authority: Signer<'info>,
+}
+
+`;
 
   return `use anchor_lang::prelude::*;
 
@@ -131,11 +182,7 @@ pub mod ${config.programName} {
         Ok(())
     }
 
-    /// Closes the PDA and transfers rent lamports back to the signer authority.
-    pub fn close(ctx: Context<CloseAccount>) -> Result<()> {
-        msg!("PDA account safely closed. Rent refunded to: {}", ctx.accounts.authority.key());
-        Ok(())
-    }
+${closeInstruction}
 }
 
 // ==========================================
@@ -172,21 +219,7 @@ pub struct UpdateAccount<'info> {
     pub authority: Signer<'info>,
 }
 
-#[derive(Accounts)]
-pub struct CloseAccount<'info> {
-    #[account(
-        mut,
-        seeds = [b"${config.pdaPrefix}", authority.key().as_ref()],
-        bump = ${config.accountName.toLowerCase()}.bump,
-        has_one = authority @ SecurityErrorCode::UnauthorizedAuthority,
-        close = authority
-    )]
-    pub ${config.accountName.toLowerCase()}: Account<'info, ${config.accountName}>,
-
-    #[account(mut)]
-    pub authority: Signer<'info>,
-}
-
+${closeAccountContext}
 // ==========================================
 // STATE DATA STRUCTURE & MEMORY ALLOCATION
 // ==========================================

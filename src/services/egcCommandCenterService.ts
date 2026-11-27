@@ -12,7 +12,7 @@
 
 import { runRealRepositoryScan, RealRepoScanResult, FileToScan } from './realRepoScanner.ts';
 import { createRealGitHubIssues, CreatedGitHubIssue, CreateGitHubIssuesResult } from './githubIssueService.ts';
-import { GitHubPrResult } from './githubPrService.ts';
+import { createGitHubPullRequest, GitHubPrResult } from './githubPrService.ts';
 import { generateAuditablePdfReport } from './pdfReportService.ts';
 import { RUST_CONTRACT_SOURCE } from '../contracts/solanaSandboxCounter.ts';
 import { generateGitHubPipelinePayload } from '../../client/index.ts';
@@ -243,33 +243,20 @@ export async function executeEgcOneClickFlow(
       domainModuleCode: domainModuleContent,
     });
 
-    // Assegura preservacao cirurgica e nao-destrutiva de arquivos (Regra C44)
-    pipelinePayload.commit.files = surgicalFiles.map(f => ({
-      path: f.path,
-      mode: '100644',
-      type: 'blob',
-      content: f.content,
-    }));
-
-    const prResponse = await fetch('/api/github/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        token,
-        owner,
-        repoName,
-        branchName: targetBranch,
-        payload: {
-          ...pipelinePayload,
-          repository: `${owner}/${repoName}`,
-        },
-      }),
+    const prData = await createGitHubPullRequest({
+      token,
+      owner,
+      repoName,
+      branchName: targetBranch,
+      baseBranch: pipelinePayload.baseBranch,
+      title: pipelinePayload.pullRequest.title,
+      body: pipelinePayload.pullRequest.body,
+      commitMessage: pipelinePayload.commit.message,
+      files: surgicalFiles,
     });
 
-    const prData = await prResponse.json().catch(() => ({}));
-
-    if (!prResponse.ok || !prData.success) {
-      const prError = prData.error || `Erro HTTP ${prResponse.status} na API de Pull Request`;
+    if (!prData.success) {
+      const prError = prData.message || 'Falha ao criar Pull Request no GitHub.';
       errors.push(prError);
       onStepProgress?.({
         step: 'pr',
